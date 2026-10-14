@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Sproutopia — 2D multiplayer sandbox</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+  <div id="err-toast" class="hidden"></div>
+
+  <!-- top HUD -->
+  <div id="topbar" class="hidden">
+    <button id="btn-world" class="pill" title="Change world"><span id="world-name">START</span></button>
+    <span class="pill" id="gems-pill" title="Gems">◆ <b id="gems">0</b></span>
+    <span class="pill" id="players-pill" title="Players here">● <b id="pcount">1</b></span>
+    <span class="spacer"></span>
+    <button id="btn-weather" class="pill" title="Weather">☀</button>
+    <button id="btn-help" class="pill" title="Help">?</button>
+  </div>
+
+  <!-- hotbar -->
+  <div id="hotbar" class="hidden"></div>
+
+  <!-- side buttons -->
+  <div id="sidebtns" class="hidden">
+    <button id="btn-inv" title="Backpack"><img src="img/ui/backpack.png" alt="Backpack"></button>
+    <button id="btn-chat" title="Chat">💬<span id="chat-badge" class="hidden"></span></button>
+  </div>
+
+  <!-- touch controls -->
+  <div id="touch" class="hidden">
+    <div id="touch-left">
+      <button id="t-left" class="tbtn">◀</button>
+      <button id="t-right" class="tbtn">▶</button>
+    </div>
+    <div id="touch-right">
+      <button id="t-punch" class="tbtn"><img src="img/ui/fist.png" alt="Punch"></button>
+      <button id="t-jump" class="tbtn">▲</button>
+    </div>
+  </div>
+
+  <!-- inventory panel -->
+  <div id="inv-panel" class="panel hidden">
+    <div class="panel-head"><b>Backpack</b><button class="x" data-close="inv-panel">✕</button></div>
+    <div id="inv-grid"></div>
+    <div id="inv-detail" class="hidden">
+      <b id="inv-name"></b><span id="inv-count"></span>
+      <p id="inv-desc"></p>
+      <div class="row">
+        <button id="inv-drop">Drop</button>
+        <button id="inv-close-detail">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- chat panel -->
+  <div id="chat-panel" class="panel hidden">
+    <div class="panel-head"><b>Chat</b><button class="x" data-close="chat-panel">✕</button></div>
+    <div id="chat-log"></div>
+    <div class="row"><input id="chat-input" maxlength="120" placeholder="Say something…  (/join WORLD)" autocomplete="off">
+    <button id="chat-send">➤</button></div>
+  </div>
+
+  <!-- dialogs -->
+  <div id="dlg-sign" class="dlg hidden">
+    <div class="dlg-box">
+      <h3>✏️ Edit sign</h3>
+      <input id="sign-input" maxlength="80" placeholder="Write on the sign…" autocomplete="off">
+      <div class="row"><button id="sign-save">Save</button><button data-close="dlg-sign">Cancel</button></div>
+    </div>
+  </div>
+
+  <div id="dlg-world" class="dlg hidden">
+    <div class="dlg-box">
+      <h3>Visit a world</h3>
+      <input id="world-input" maxlength="16" placeholder="WORLD NAME" autocomplete="off">
+      <div class="row"><button id="world-go">Go</button><button data-close="dlg-world">Cancel</button></div>
+      <h4>🌐 Browse worlds</h4>
+      <div id="world-list" class="world-list"><div class="wrow dim">Loading…</div></div>
+    </div>
+  </div>
+
+  <div id="dlg-wrench" class="dlg hidden">
+    <div class="dlg-box">
+      <h3 id="wrench-name">Player</h3>
+      <div id="wrench-info" class="winfo"></div>
+      <div class="row col">
+        <button id="wrench-trade">🤝 Trade</button>
+        <button id="wrench-access" class="hidden">🔑 Give access</button>
+        <button id="wrench-revoke" class="hidden">🔑 Remove access</button>
+      </div>
+      <div class="row"><button data-close="dlg-wrench">Close</button></div>
+    </div>
+  </div>
+
+  <div id="dlg-trade" class="dlg hidden">
+    <div class="dlg-box wide">
+      <h3>Trade</h3>
+      <div id="trade-sides">
+        <div class="tside"><b id="trade-aname">You</b><div id="trade-a" class="toffer"></div><button id="trade-alock">🔒 Lock</button></div>
+        <div class="tside"><b id="trade-bname">Them</b><div id="trade-b" class="toffer"></div><button id="trade-block" disabled>🔒 Lock</button></div>
+      </div>
+      <div class="row">
+        <button id="trade-add">＋ Add item</button>
+        <button id="trade-confirm">✓ Confirm</button>
+        <button id="trade-cancel">✕ Cancel</button>
+      </div>
+      <div id="trade-addrow" class="hidden row">
+        <select id="trade-item"></select>
+        <input id="trade-count" type="number" min="1" value="1">
+        <button id="trade-addok">Add</button>
+      </div>
+      <p class="hint">Both players lock, then both confirm. The swap is atomic.</p>
+    </div>
+  </div>
+
+  <div id="dlg-help" class="dlg hidden">
+    <div class="dlg-box">
+      <h3>Get HatID</h3>
+      <p class="hint">Protect your name with a password — then log in from any device.</p>
+      <div class="row"><label>Password: <input id="hatid-newpass" type="password" maxlength="64" placeholder="6+ characters"></label></div>
+      <div class="row"><button id="btn-hatid-claim">Get HatID</button></div>
+      <h3>How to play</h3>
+      <ul>
+        <li>◀ ▶ move, ▲ / Space jump, 👊 punch</li>
+        <li>Tap a tile to punch it. Break blocks for drops.</li>
+        <li>Select a block/seed in 🎒, then tap a tile to place.</li>
+        <li>Plant seeds on empty tiles above solid ground. Punch grown trees to harvest.</li>
+        <li>Plant a <i>different</i> seed on a growing tree to splice it — hybrids include furniture (Wood+Metal=Chest, Wood+Glow=Lamp…).</li>
+        <li>Place a World Lock to own a world. Wrench 🔧 players to trade or give access.</li>
+        <li>Punch a Door to teleport to spawn. Chat: /join WORLDNAME.</li>
+      </ul>
+      <div class="row"><button data-close="dlg-help">Close</button></div>
+    </div>
+  </div>
+
+  <!-- login / title screen -->
+  <div id="login">
+    <div class="sky">
+      <div class="sun"></div>
+      <div class="cloud c1"></div>
+      <div class="cloud c2"></div>
+      <div class="cloud c3"></div>
+      <div class="cloud c4"></div>
+      <div class="cloud c5"></div>
+      <div class="hills"></div>
+    </div>
+    <div class="login-box">
+      <img id="login-logo" src="img/logo.png" alt="Hattopia">
+      <button id="btn-play" class="menu-btn">Play Online</button>
+      <button id="btn-options" class="menu-btn">Options</button>
+      <button id="btn-about" class="menu-btn">About</button>
+    </div>
+    <div class="login-ver">V0.1.0</div>
+  </div>
+
+  <!-- login form: guest (left) vs HatID (right) -->
+  <div id="login-form" class="hidden">
+    <div class="lf-panels">
+      <div class="lf-panel">
+        <h3>Guest</h3>
+        <label>Name: <input id="guest-name" maxlength="16" placeholder="Your name" autocomplete="off"></label>
+        <p class="lf-hint">Enter your name, then click Connect to go online.</p>
+        <button id="btn-guest" class="menu-btn">Connect</button>
+      </div>
+      <div class="lf-panel">
+        <div id="hatid-login">
+          <h3>I have a HatID</h3>
+          <label>HatID: <input id="hatid-name" maxlength="16" placeholder="In-game name" autocomplete="off"></label>
+          <label>Password: <input id="hatid-pass" type="password" maxlength="64" placeholder="Password" autocomplete="current-password"></label>
+          <button id="btn-hatid" class="menu-btn">Connect</button>
+          <p class="lf-hint">No HatID yet? <a id="lf-showreg" href="#">Get one — it's free!</a></p>
+        </div>
+        <div id="hatid-reg" class="hidden">
+          <h3>Get a HatID</h3>
+          <label>Name: <input id="reg-name" maxlength="16" placeholder="Pick a name" autocomplete="off"></label>
+          <label>Password: <input id="reg-pass" type="password" maxlength="64" placeholder="6+ characters" autocomplete="new-password"></label>
+          <label>Confirm: <input id="reg-pass2" type="password" maxlength="64" placeholder="Repeat password" autocomplete="new-password"></label>
+          <button id="btn-reg" class="menu-btn">Register</button>
+          <p class="lf-hint"><a id="lf-showlogin" href="#">Back to login</a></p>
+        </div>
+      </div>
+    </div>
+    <p class="lf-note">A HatID lets you play on multiple devices without losing your stuff.
+      Already playing as guest? Get one from Help → Get HatID.</p>
+    <p id="login-err" class="err"></p>
+    <button id="btn-back" class="menu-btn small">Back</button>
+  </div>
+
+  <div id="dlg-options" class="dlg hidden">
+    <div class="dlg-box">
+      <h3>Options</h3>
+      <div class="row"><label>Visual quality: <select id="sel-quality">
+        <option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option>
+      </select></label></div>
+      <div class="row"><button data-close="dlg-options">Close</button></div>
+    </div>
+  </div>
+
+  <div id="dlg-about" class="dlg hidden">
+    <div class="dlg-box">
+      <h3>About</h3>
+      <p>A tiny multiplayer sandbox. Punch, plant, build — with friends, in your browser.</p>
+      <p class="hint">Original fan-style game. Not affiliated with Growtopia.</p>
+      <div class="row"><button data-close="dlg-about">Close</button></div>
+    </div>
+  </div>
+
+  <div id="toasts"></div>
+  <div id="conn" class="hidden">Reconnecting…</div>
+</div>
+<script type="module" src="js/main.mjs"></script>
+</body>
+</html>
