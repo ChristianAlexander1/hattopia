@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "description": "Original clean-room 2D multiplayer sandbox browser game (Growtopia-inspired mechanics, original art)",
+  "name": "growtopia-clone",
+  "scripts": {
+    "assets": "python3 scripts/build_assets.py",
+    "start": "node server/server.mjs",
+    "test": "node --test --import ./tests/setup.mjs tests/*.test.mjs"
+  },
+  "type": "module",
+  "version": "0.1.0"
+}
