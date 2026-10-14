@@ -1,0 +1,49 @@
+{
+ "idle": [
+  "idle_0.png",
+  "idle_1.png",
+  "idle_2.png",
+  "idle_3.png",
+  "idle_4.png"
+ ],
+ "runR": [
+  "runR_0.png",
+  "runR_1.png",
+  "runR_2.png",
+  "runR_3.png",
+  "runR_4.png",
+  "runR_5.png",
+  "runR_6.png"
+ ],
+ "runL": [
+  "runL_0.png",
+  "runL_1.png",
+  "runL_2.png",
+  "runL_3.png",
+  "runL_4.png",
+  "runL_5.png"
+ ],
+ "jump": [
+  "jump_0.png",
+  "jump_1.png",
+  "jump_2.png",
+  "jump_3.png",
+  "jump_4.png",
+  "jump_5.png",
+  "jump_6.png"
+ ],
+ "fall": [
+  "fall_0.png",
+  "fall_1.png",
+  "fall_2.png",
+  "fall_3.png",
+  "fall_4.png"
+ ],
+ "punch": [
+  "punch_0.png",
+  "punch_1.png",
+  "punch_2.png",
+  "punch_3.png",
+  "punch_4.png"
+ ]
+}
