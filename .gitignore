@@ -1,0 +1,8 @@
+node_modules/
+data/*.db*
+.env
+assets/ref/
+qafinal.mjs
+qarepro.mjs
+proxy-cmd.py
+.tunnel_state
