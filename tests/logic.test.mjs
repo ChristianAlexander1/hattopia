@@ -20,15 +20,16 @@ test('world dimensions are 100x60 with unbreakable bedrock base', () => {
 
 test('spawn plaza has solid footing and clear air above', () => {
   const g = generateWorld('TEST');
-  const surfaceAt = (x) => 30 + Math.round(Math.sin(x * 0.18) * 2 + Math.sin(x * 0.05 + 1.7) * 3);
+  const S = 30; // flat terrain surface
   for (let x = 46; x <= 54; x++) {
-    const s = surfaceAt(x);
+    if (x === 54) continue; // door column: bedrock + white door
+    const s = S;
     assert.equal(g.fg[idx(x, s)], 2, `grass footing at ${x}`);
     assert.equal(g.fg[idx(x, s - 1)], 0, `air above spawn at ${x}`);
     assert.equal(g.fg[idx(x, s - 2)], 0, `air above spawn at ${x}`);
   }
   assert.ok(g.spawn.x > 46 * 32 && g.spawn.x < 55 * 32, 'spawn x near plaza');
-  assert.equal(g.spawn.y, surfaceAt(50) * 32, 'spawn feet on the ground');
+  assert.equal(g.spawn.y, S * 32, 'spawn feet on the ground');
 });
 
 test('every block has hardness, rarity, and valid collision', () => {
@@ -143,4 +144,55 @@ test('crackStageFor maps damage ratio to progressive stages', async () => {
   assert.equal(crackStageFor(7, 8), 3, '87% -> stage 3');
   assert.equal(crackStageFor(1, 1), 3, 'single-punch block shows heavy cracks on its only hit');
   assert.equal(crackStageFor(0, 0), 0, 'zero hardness safe');
+});
+
+test('new world terrain is completely flat', () => {
+  const g = generateWorld('FLATTEST');
+  const S = 30;
+  const aboveOk = new Set([0, 19, 20, 43, 44, 45, 46]); // air, trunk, leaves, door, flowers
+  for (let x = 0; x < WORLD_W; x++) {
+    assert.equal(g.fg[idx(x, S)], x === 54 ? 7 : 2, `surface at ${x} (bedrock under door)`);
+    for (let y = 0; y < S; y++)
+      assert.ok(aboveOk.has(g.fg[idx(x, y)]), `only air/trees/door/flowers above surface at ${x},${y}: got ${g.fg[idx(x, y)]}`);
+  }
+});
+
+test('white exit door sits on bedrock near spawn', () => {
+  const g = generateWorld('DOORTEST');
+  const S = 30, dx = 54;
+  assert.equal(g.fg[idx(dx, S - 1)], 43, 'white door above surface');
+  assert.equal(g.fg[idx(dx, S)], 7, 'bedrock directly beneath door');
+  const door = itemById(43);
+  assert.equal(door.action, 'exit', 'door has exit action');
+  assert.ok(!isFinite(door.hardness), 'door unbreakable');
+});
+
+test('trees have trunk + canopy and keep spawn/door clear', () => {
+  const g = generateWorld('TREETEST');
+  const S = 30;
+  for (const tx of [12, 24, 36, 68, 80, 90]) {
+    for (const dy of [1, 2, 3]) assert.equal(g.fg[idx(tx, S - dy)], 19, `trunk at ${tx},${S - dy}`);
+    assert.equal(g.fg[idx(tx, S - 4)], 20, `leaves above trunk at ${tx}`);
+    assert.equal(g.fg[idx(tx - 1, S - 5)], 20, `canopy at ${tx - 1}`);
+    assert.equal(g.fg[idx(tx + 1, S - 5)], 20, `canopy at ${tx + 1}`);
+  }
+  for (let x = 44; x <= 60; x++) {
+    const id = g.fg[idx(x, S - 1)];
+    assert.ok(id === 0 || id === 43, `clear zone at ${x}: got ${id}`);
+  }
+});
+
+test('flowers are non-solid deco on grass', () => {
+  const g = generateWorld('FLOWERTEST');
+  const S = 30;
+  let count = 0;
+  for (let x = 0; x < WORLD_W; x++) {
+    const id = g.fg[idx(x, S - 1)];
+    if ([44, 45, 46].includes(id)) {
+      count++;
+      assert.equal(itemById(id).collision, 'none', `flower ${id} non-solid`);
+      assert.equal(g.fg[idx(x, S)], 2, `flower ${id} on grass at ${x}`);
+    }
+  }
+  assert.ok(count >= 5, `flowers scattered (found ${count})`);
 });

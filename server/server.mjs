@@ -30,6 +30,19 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ ok: true, uptime: Math.floor(process.uptime()), players: game.players.size, worlds: activeWorlds }));
       return;
     }
+    // Client error reports (diagnostics): log them server-side.
+    if (urlPath === '/client-error' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (c) => { body += c; if (body.length > 4000) req.destroy(); });
+      req.on('end', () => {
+        try {
+          const e = JSON.parse(body);
+          console.log(`[client-error] ${e.ua || ''} :: ${e.msg} @ ${e.file}:${e.line}:${e.col} :: ${(e.stack || '').slice(0, 500)}`);
+        } catch { console.log('[client-error] (unparseable)'); }
+      });
+      res.writeHead(200); res.end('ok');
+      return;
+    }
     if (urlPath === '/') urlPath = '/index.html';
     // /shared/* is served from the repo-root shared dir (imported by client modules)
     const base = urlPath.startsWith('/shared/') ? SHARED : CLIENT;

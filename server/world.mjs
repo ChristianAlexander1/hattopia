@@ -6,41 +6,66 @@ export const inBounds = (x, y) => x >= 0 && y >= 0 && x < WORLD_W && y < WORLD_H
 
 // Item ids (must match shared/items.mjs)
 const DIRT = 1, GRASS = 2, STONE = 3, BEDROCK = 7, CAVE_BG = 10, DIRT_BG = 11;
+const TRUNK = 19, LEAVES = 20, WHITE_DOOR = 43;
+const FLOWERS = [44, 45, 46]; // red, yellow, white
 
-function hash(x) { // deterministic pseudo-random per column
+// New-world layout constants (shared with tests via export)
+export const GEN = {
+  surfaceY: 30,      // flat grass surface row
+  spawnX: 50,        // spawn tile x
+  doorX: 54,         // white door tile x (on surface, bedrock beneath)
+  clearX0: 44, clearX1: 60, // keep-clear zone: no trees/flowers
+  treeXs: [12, 24, 36, 68, 80, 90],
+};
+
+function hash(x) { // deterministic pseudo-random in [0,1)
   let h = (x * 374761393 + 668265263) | 0;
-  h = (h ^ (h >> 13)) * 1274126177;
-  return ((h ^ (h >> 16)) >>> 0) / 4294967295;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967295;
 }
 
 export function generateWorld(name) {
   const fg = new Uint16Array(WORLD_W * WORLD_H);
   const bg = new Uint16Array(WORLD_W * WORLD_H);
-  const base = 30;
+  const S = GEN.surfaceY;
   for (let x = 0; x < WORLD_W; x++) {
-    const hill = Math.round(Math.sin(x * 0.18) * 2 + Math.sin(x * 0.05 + 1.7) * 3);
-    const surface = base + hill;
     for (let y = 0; y < WORLD_H; y++) {
       const i = idx(x, y);
       if (y >= WORLD_H - BEDROCK_ROWS) { fg[i] = BEDROCK; continue; }
-      if (y < surface) continue;
-      if (y === surface) fg[i] = GRASS;
-      else if (y < surface + 6) fg[i] = hash(x * 7 + y) < 0.12 ? STONE : DIRT;
-      else fg[i] = hash(x * 3 + y * 5) < 0.75 ? STONE : DIRT;
-      // background layer underground
-      if (y > surface + 1) bg[i] = hash(x + y * 11) < 0.6 ? CAVE_BG : DIRT_BG;
+      if (y < S) continue;
+      if (y === S) fg[i] = GRASS;
+      else if (y <= S + 4) fg[i] = DIRT;
+      else fg[i] = hash(x * 3 + y * 5) < 0.7 ? STONE : DIRT;
+      if (y > S + 1) bg[i] = hash(x + y * 11) < 0.6 ? CAVE_BG : DIRT_BG;
     }
   }
-  // Flattened spawn plaza near x=50: solid ground with an air pocket above
-  const sx = 50;
-  const surfaceAt = (x) => base + Math.round(Math.sin(x * 0.18) * 2 + Math.sin(x * 0.05 + 1.7) * 3);
-  for (let x = sx - 4; x <= sx + 4; x++) {
-    const surface = surfaceAt(x);
-    for (let y = surface - 4; y < surface; y++) fg[idx(x, y)] = 0;
-    fg[idx(x, surface)] = GRASS; // guaranteed footing
+  // Trees: trunk (3 high) + leaf canopy, clear of spawn/door zone
+  for (const tx of GEN.treeXs) {
+    if (tx >= GEN.clearX0 && tx <= GEN.clearX1) continue;
+    fg[idx(tx, S - 1)] = TRUNK;
+    fg[idx(tx, S - 2)] = TRUNK;
+    fg[idx(tx, S - 3)] = TRUNK;
+    for (const [lx, ly] of [[-1, -4], [0, -4], [1, -4], [-1, -5], [0, -5], [1, -5], [0, -6]])
+      fg[idx(tx + lx, S + ly)] = LEAVES;
   }
-  const spawnSurface = surfaceAt(sx);
-  return { fg, bg, spawn: { x: sx * TILE + TILE / 2, y: spawnSurface * TILE } };
+  // Flowers: scattered on the grass, clear of spawn/door zone
+  let placed = 0;
+  for (let x = 2; x < WORLD_W - 2 && placed < 14; x++) {
+    if (x >= GEN.clearX0 && x <= GEN.clearX1) continue;
+    const h = hash(x * 13 + 7);
+    if (h < 0.55) continue; // natural spacing
+    // skip if a tree trunk is here
+    if (fg[idx(x, S - 1)] !== 0) continue;
+    fg[idx(x, S - 1)] = FLOWERS[Math.floor(h * 97) % FLOWERS.length];
+    placed++;
+  }
+  // White exit door on the surface with bedrock directly beneath
+  const dx = GEN.doorX;
+  fg[idx(dx, S)] = BEDROCK;      // replaces grass under the door
+  fg[idx(dx, S - 1)] = WHITE_DOOR;
+  const sx = GEN.spawnX;
+  return { fg, bg, spawn: { x: sx * TILE + TILE / 2, y: S * TILE } };
 }
 
 export function serializeWorld(w) {

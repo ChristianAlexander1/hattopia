@@ -263,10 +263,21 @@ export class VFX {
       if (s.t >= vfxImgs.splashes[s.kind].length) this.splashPool.splice(i, 1);
     }
 
-    // wind particles (leaves, dust)
+    // wind particles (leaves, dust) — no leaves/pollen/feather during rain,
+    // they would be washed down; only wind streaks in wet weather.
     const wantWind = Math.round(q.wind * (0.2 + c.wind));
+    const isWet = (c.rain || 0) > 0.1;
+    // when it starts raining, remove leaves/pollen/feather immediately
+    if (isWet) {
+      const dryTypes = ['leaf_oak.png', 'leaf_maple.png', 'leaf_brown.png', 'pollen_cluster.png', 'feather.png'];
+      for (let i = this.windPool.length - 1; i >= 0; i--) {
+        if (dryTypes.includes(this.windPool[i].img)) this.windPool.splice(i, 1);
+      }
+    }
     while (this.windPool.length < wantWind) {
-      const types = ['leaf_oak.png', 'leaf_maple.png', 'leaf_brown.png', 'dust_cluster.png', 'pollen_cluster.png', 'feather.png'];
+      const types = isWet
+        ? ['wind_streak_1.png', 'wind_streak_1.png', 'dust_cluster.png']
+        : ['leaf_oak.png', 'leaf_maple.png', 'leaf_brown.png', 'dust_cluster.png', 'pollen_cluster.png', 'feather.png'];
       this.windPool.push({
         img: types[(Math.random() * types.length) | 0],
         x: Math.random() * w, y: Math.random() * h * 0.8,

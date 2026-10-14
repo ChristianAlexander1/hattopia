@@ -397,3 +397,19 @@ States: NOT STARTED → IN PROGRESS → IMPLEMENTED → VERIFIED
   existing players' inventories on login (fist->0, wrench->1, rest preserved).
 - Tests: +1 (hotbar order new/existing). 50/50 pass. Browser QA (mobile
   viewport): canvas renders, hotbar [81,80,1], zero errors.
+
+## 2026-10-15 — Default new-world generation + white exit door (user feature request)
+- New worlds now generate FLAT terrain (surface y=30): grass top, dirt 4 deep,
+  stone/dirt mix below, bedrock base. Fixed broken hash() (was 100% stone).
+- Trees: trunk (19) x3 + leaves (20) canopy at x=12,24,36,68,80,90.
+- Flowers: 3 new deco items (44/45/46, original pixel art), scattered on grass.
+- White exit door (id 43, original white recolor of own door.png) at (54,29)
+  with bedrock (7) directly beneath at (54,30). Unbreakable, action 'exit'.
+- Punching white door -> server sends {t:'openWorlds'} -> client opens world
+  browser dialog. 2s cooldown prevents duplicate exits. Works for owners too.
+- Generation is server-side, synchronous (no races), only for new worlds;
+  existing worlds load from DB untouched.
+- Tests: +7 (flat, door/bedrock, trees, flowers, exit punch, 2-player sync,
+  no-regen). 57/57 pass (2 pre-existing flaky tests: punch-fx, unrelated).
+- Browser QA (desktop + mobile viewport): flat world, door on bedrock, punch
+  door opens world browser, zero console errors.

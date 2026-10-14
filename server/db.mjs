@@ -50,7 +50,7 @@ try { db.exec('ALTER TABLE players ADD COLUMN password_hash TEXT'); } catch { /*
 
 const q = {
   getPlayerByToken: db.prepare('SELECT * FROM players WHERE token = ?'),
-  getPlayerByName: db.prepare('SELECT * FROM players WHERE name = ?'),
+  getPlayerByName: db.prepare('SELECT * FROM players WHERE name = ? COLLATE NOCASE'),
   insertPlayer: db.prepare(`INSERT INTO players (id,name,token,look,gems,last_world,password_hash,created_at,updated_at)
     VALUES (?,?,?,?,?,?,?,?,?)`),
   updatePlayer: db.prepare(`UPDATE players SET look=?,gems=?,last_world=?,updated_at=? WHERE id=?`),

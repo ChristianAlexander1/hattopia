@@ -361,7 +361,7 @@ test('world browser lists public metadata only', () => {
   assert.ok(m && Array.isArray(m.worlds), 'worlds list sent');
   assert.ok(m.worlds.length >= 1, 'at least one world listed');
   for (const w of m.worlds) {
-    assert.deepEqual(Object.keys(w).sort(), ['locked', 'name', 'players'], 'only public fields, no ownerId/access/tokens');
+    assert.deepEqual(Object.keys(w).sort(), ['locked', 'name', 'ownerName', 'players'], 'only public fields, no ownerId/access/tokens');
   }
   const live = m.worlds.find((w) => w.name === A.world);
   assert.ok(live, 'live world listed');
@@ -508,14 +508,63 @@ test('punch fx broadcast: other players see impact, puncher excluded (no double 
 
 test('hotbar order: fist first, wrench second (new + existing players)', () => {
   const game = makeGame();
-  const A = login(game, 'OrderA');
+  const A = loginWorld(game, 'OrderA', 'ORDERW_' + R);
   assert.equal(A.inv[0]?.id, 81, 'fist in slot 1 for new player');
   assert.equal(A.inv[1]?.id, 80, 'wrench in slot 2 for new player');
   // existing player with old order gets normalized on login
-  const B = login(game, 'OrderB');
+  const B = loginWorld(game, 'OrderB', 'ORDERW_' + R);
   B.inv = [{ id: 1, count: 20 }, { id: 80, count: 1 }, { id: 81, count: 1 }, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null];
   game.ensureTools(B);
   assert.equal(B.inv[0]?.id, 81, 'fist moved to slot 1');
   assert.equal(B.inv[1]?.id, 80, 'wrench moved to slot 2');
   assert.equal(B.inv[2]?.id, 1, 'other items preserved after');
+});
+
+function loginWorld(game, name, world) {
+  const ws = fakeWs();
+  game.onHello(ws, { name: name + '_' + R, world });
+  const id = game.byWs.get(ws);
+  return game.players.get(id);
+}
+
+test('punching white door opens world browser (exit), not teleport/break', () => {
+  const game = makeGame();
+  const A = loginWorld(game, 'ExitA', 'EXITW_' + R);
+  const w = game.worlds.get(A.world);
+  // door is at (54, 29) in every new world
+  assert.equal(w.fg[idx(54, 29)], 43, 'white door present');
+  nearTile(game, A, 53, 29);
+  A.lastDoorAt = 0;
+  game.onPunch(A, { tx: 54, ty: 29 });
+  const opened = msgs(A, 'openWorlds');
+  assert.equal(opened.length, 1, 'client told to open world browser');
+  assert.equal(w.fg[idx(54, 29)], 43, 'door not broken');
+  // cooldown prevents duplicate exits
+  game.onPunch(A, { tx: 54, ty: 29 });
+  assert.equal(msgs(A, 'openWorlds').length, 1, 'no duplicate exit within cooldown');
+});
+
+test('new world is identical for two players (server-authoritative gen)', () => {
+  const game = makeGame();
+  const A = loginWorld(game, 'SyncA', 'SYNCW_' + R);
+  const B = loginWorld(game, 'SyncB', 'SYNCW_' + R);
+  // both joined TESTW_<R> — same world object, same generated data
+  assert.equal(A.world, B.world, 'same world');
+  const w = game.worlds.get(A.world);
+  assert.equal(w.fg[idx(54, 29)], 43, 'both see the white door');
+  assert.equal(w.fg[idx(12, 29)], 19, 'both see tree trunks');
+});
+
+test('existing world data is never regenerated on entry', () => {
+  const game = makeGame();
+  const A = loginWorld(game, 'RegenA', 'REGENW_' + R);
+  const w = game.worlds.get(A.world);
+  // player builds something, then leaves and rejoins
+  w.fg[idx(10, 29)] = 3; w.markDirty();
+  game.saveWorld(w);
+  game.worlds.delete(A.world);
+  const B = loginWorld(game, 'RegenB', 'REGENW_' + R);
+  const w2 = game.worlds.get(B.world);
+  assert.equal(w2.fg[idx(10, 29)], 3, 'player-built block persists');
+  assert.equal(w2.fg[idx(54, 29)], 43, 'door still there, no regen');
 });

@@ -9,13 +9,37 @@ import { Renderer } from './render.mjs';
 import { UI } from './ui.mjs';
 import { sfx } from './audio.mjs';
 import { VFX, loadVfx } from './vfx.mjs';
+import { storage } from './storage.mjs';
 
 // Surface unexpected client errors visibly (instead of a silent blank canvas).
-window.addEventListener('error', (e) => {
-  const msg = (e.message || 'unknown error').slice(0, 120);
+// Also POST full details to the server so the real error is in the server log.
+function reportClientError(msg, file, line, col, stack) {
+  // Ignore errors from browser extensions/injected scripts (e.g. Brave wallet).
+  // Only report errors from our own game files.
+  const src = String(file || '') + String(stack || '');
+  const m = String(msg || '');
+  if (src.includes('ethereum') || src.includes('chrome-extension://') || src.includes('moz-extension://')) return;
+  // "Script error." with no file/line/stack is always from an external/injected
+  // script (browsers sanitize those); our own errors always have location info.
+  if (m === 'Script error.' && !file && !line && !stack) return;
+  if (!src.includes('pinggy.net') && !src.includes('localhost') && src) return;
   const el = document.getElementById('err-toast');
-  if (el) { el.textContent = 'Error: ' + msg; el.classList.remove('hidden'); }
-  console.error('[client]', e.message, e.filename, e.lineno);
+  if (el) { el.textContent = 'Error: ' + String(msg).slice(0, 120); el.classList.remove('hidden'); }
+  try {
+    fetch('/client-error', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ msg: String(msg).slice(0, 300), file, line, col, stack: String(stack || '').slice(0, 800), ua: navigator.userAgent.slice(0, 120) }),
+    }).catch(() => {});
+  } catch {}
+  console.error('[client]', msg, file, line, col);
+}
+window.addEventListener('error', (e) => {
+  reportClientError(e.message || 'unknown error', e.filename, e.lineno, e.colno, e.error && e.error.stack);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e.reason;
+  reportClientError('unhandled: ' + (r && r.message || r), '', 0, 0, r && r.stack);
 });
 
 const canvas = document.getElementById('game');
@@ -25,6 +49,7 @@ const me = { id: '', name: '', body: makeBody(0, 0), look: { skin: 'e3ac72', hai
 const world = {
   name: 'START', fg: new Uint16Array(WORLD_W * WORLD_H), bg: new Uint16Array(WORLD_W * WORLD_H),
   seeds: new Map(), damage: new Map(), drops: new Map(), players: new Map(),
+  bubbles: new Map(),
   weather: 'clear', lock: null, spawn: { x: 0, y: 0 }, canEdit: true,
 };
 const target = { tx: -1, ty: -1, at: 0 };
@@ -39,6 +64,26 @@ function solid(tx, ty) {
 }
 
 // ---------- UI handlers ----------
+// AUTO_PLAY: skip title/login screens and go straight into the game.
+// The login UI is ARCHIVED (see docs/LOGIN_ARCHIVE.md), not deleted.
+// Set to false to restore the title + login flow.
+const AUTO_PLAY = false;
+function autoPlay() {
+  if (!AUTO_PLAY) return;
+  // hide login UI (kept intact in the DOM for later restore)
+  for (const id of ['login', 'login-form']) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  }
+  // pick a name: saved name, or a random guest name
+  let name = storage.get('sproutopia_name');
+  if (!/^[A-Za-z0-9_]{3,16}$/.test(name || '')) {
+    name = 'Guest' + Math.floor(1000 + Math.random() * 9000);
+  }
+  sfx.unlock();
+  me.name = name;
+  net.connect(name);
+}
 const ui = new UI({
   onPlay: (name) => { sfx.unlock(); me.name = name; net.connect(name); },
   onHatIdLogin: (name, password) => { sfx.unlock(); me.name = name; net.connect(name, password); },
@@ -48,6 +93,8 @@ const ui = new UI({
   onSelect: (i) => {},
   onDropItem: (id, count) => net.send({ t: 'dropItem', item: id, count }),
   onJoinWorld: (name) => net.send({ t: 'joinWorld', name }),
+  onRespawn: () => { me.body.x = world.spawn.x; me.body.y = world.spawn.y; me.body.vx = me.body.vy = 0; renderer.snapCamera(me.body.x, me.body.y); },
+  onLogout: () => location.reload(),
   getLook: () => me.look,
   onSetLook: (look) => { me.look = look; net.send({ t: 'setLook', look }); },
   onTradeInvite: (pid) => net.send({ t: 'trade', act: 'invite', targetId: pid }),
@@ -69,6 +116,8 @@ function onNetMessage(m) {
     case 'error': ui.loginError(m.text); sfx.error(); break;
     case 'world': {
       world.name = m.name;
+      ui.worldName = m.name; ui.playerName = me.name;
+      world.bubbles = new Map();
       world.fg = Uint16Array.from(m.fg); world.bg = Uint16Array.from(m.bg);
       world.seeds = new Map(m.seeds.map((s) => [s.y * WORLD_W + s.x, { seed: s.seed, plantedAt: s.plantedAt }]));
       world.signs = new Map((m.signs || []).map((s) => [s.y * WORLD_W + s.x, s.text]));
@@ -139,9 +188,13 @@ function onNetMessage(m) {
     case 'gems': me.gems = m.gems; ui.setGems(m.gems); break;
     case 'chat':
       ui.addChat(m.from, m.text);
+      // chat bubble above the sender's head (5 seconds)
+      world.bubbles.set(m.id, { text: m.text, until: performance.now() + 5000 });
       if (m.id !== me.id) sfx.chat();
       break;
     case 'notice': ui.notice(m.text); break;
+    case 'noclip': me.noclip = m.on; me.body.noclip = m.on; ui.notice('Noclip ' + (m.on ? 'ON — fly through blocks' : 'OFF')); break;
+    case 'openWorlds': ui.openWorldBrowser(); break;
     case 'dropSpawn': world.drops.set(m.id, { id: m.id, item: m.item, count: m.count, x: m.x, y: m.y }); break;
     case 'dropGone': world.drops.delete(m.id); pickupSent.delete(m.id); sfx.pickup(); break;
     case 'weather': world.weather = m.kind; ui.setWeather(m.kind); {
@@ -193,9 +246,21 @@ function doPunchAt(tx, ty) {
 }
 // Punch button: reach out in the facing direction — hits the first block
 // within range, not just the adjacent tile (long-range punch).
+// If the player is standing on a white door (id 43), punch opens the
+// world browser instead (exit door).
 function punchFaced() {
+  // check if player overlaps a white door tile (feet or head)
   const ptx = Math.floor(me.body.x / TILE);
-  const pty = Math.floor((me.body.y - 24) / TILE);
+  const feetTy = Math.floor(me.body.y / TILE);
+  const headTy = Math.floor((me.body.y - 30) / TILE);
+  for (const ty of [feetTy, headTy]) {
+    if (ty >= 0 && ty < WORLD_H && world.fg[ty * WORLD_W + ptx] === 43) {
+      ui.openWorldBrowser();
+      sfx.punch();
+      return;
+    }
+  }
+  const pty = Math.floor((me.body.y - 15) / TILE);
   const maxD = Math.floor(PUNCH_RANGE / TILE);
   let tx = ptx + me.body.face, ty = pty;
   for (let d = 1; d <= maxD; d++) {
@@ -231,7 +296,17 @@ function tapTile(tx, ty) {
 
 const input = new Input(canvas, {
   onTap: (tx, ty) => tapTile(tx, ty),
-  onTapPlayer: (pid) => net.send({ t: 'wrench', targetId: pid }),
+  // Wrench dialog only when the wrench (id 80) is the selected hotbar item.
+  // Otherwise a tap on a player just punches the tile (no accidental dialogs).
+  // Returns true if the tap was handled (so input.mjs doesn't also punch).
+  onTapPlayer: (pid) => {
+    const sel = ui.selectedItem();
+    if (sel && sel.id === 80) {
+      net.send({ t: 'wrench', targetId: pid });
+      return true;
+    }
+    return false;
+  },
   onPunchKey: () => punchFaced(),
   onJumpPress: () => { me.body.jumpBuf = 0.12; sfx.jump(); },
   onHotbar: (i) => ui.select(i),
@@ -241,10 +316,10 @@ const input = new Input(canvas, {
 input.screenToWorld = (sx, sy) => renderer.screenToWorld(sx, sy);
 input.tapPlayerAt = (wx, wy) => {
   for (const [id, pl] of world.players) {
-    if (Math.abs(pl.x - wx) < 34 && Math.abs(pl.y - 22 - wy) < 44) return id;
+    if (Math.abs(pl.x - wx) < 28 && Math.abs(pl.y - 15 - wy) < 30) return id;
   }
   // tapping yourself wrenches yourself (player info)
-  if (me.id && Math.abs(me.body.x - wx) < 34 && Math.abs(me.body.y - 22 - wy) < 44) return me.id;
+  if (me.id && Math.abs(me.body.x - wx) < 28 && Math.abs(me.body.y - 15 - wy) < 30) return me.id;
   return null;
 };
 
@@ -252,7 +327,7 @@ input.tapPlayerAt = (wx, wy) => {
 const renderer = new Renderer(canvas);
 const vfx = new VFX();
 // quality from localStorage (default medium for mobile)
-vfx.setQuality(localStorage.getItem('sproutopia_quality') || 'medium');
+vfx.setQuality(storage.get('sproutopia_quality') || 'medium');
 
 // ---------- main loop ----------
 let last = performance.now(), moveAcc = 0;
@@ -262,7 +337,9 @@ function frame(nowMs) {
   if (dt > 0.1) dt = 0.1;
 
   if (me.id && world.name) {
-    stepBody(me.body, input, solid, dt);
+    // noclip: bypass all tile collision (admin)
+    const solidFn = me.noclip ? () => false : solid;
+    stepBody(me.body, input, solidFn, dt);
     // keep inside world
     me.body.x = Math.max(12, Math.min(WORLD_W * TILE - 12, me.body.x));
 
@@ -274,7 +351,7 @@ function frame(nowMs) {
     // drop pickup
     for (const d of world.drops.values()) {
       if (pickupSent.has(d.id)) continue;
-      if (Math.hypot(me.body.x - d.x, me.body.y - 22 - d.y) < 56) {
+      if (Math.hypot(me.body.x - d.x, me.body.y - 15 - d.y) < 56) {
         pickupSent.add(d.id);
         net.send({ t: 'pickup', id: d.id });
       }
@@ -290,20 +367,39 @@ function frame(nowMs) {
     // vfx update (weather from server)
     vfx.setWeather(world.weather || 'clear');
     vfx.update(dt, renderer.w, renderer.h, renderer.cam.x, renderer.cam.y, world, renderer.scale);
-    renderer.draw({ world, me: { id: me.id, name: me.name, x: me.body.x, y: me.body.y, face: me.body.face, anim: me.body.anim, punchT: me.body.punchT, look: me.look }, players: world.players, target: showTarget, vfx }, nowMs);
+    try {
+      renderer.draw({ world, me: { id: me.id, name: me.name, x: me.body.x, y: me.body.y, face: me.body.face, anim: me.body.anim, punchT: me.body.punchT, look: me.look, noclip: me.noclip }, players: world.players, target: showTarget, vfx }, nowMs);
+    } catch (e) {
+      // Report render errors (throttled): a broken frame must never be silent.
+      if (!frame._errAt || performance.now() - frame._errAt > 10000) {
+        frame._errAt = performance.now();
+        reportClientError('render: ' + (e && e.message), '', 0, 0, e && e.stack);
+      }
+    }
   }
 }
 
 // ---------- boot ----------
+// The render loop MUST start no matter what: any boot error is caught and
+// reported, but never prevents the game from running.
 (async () => {
-  // Asset loading must NEVER kill the render loop: a single failed image
-  // used to reject the whole boot, leaving a blank canvas with working UI.
-  try { await loadAssets(); } catch (e) { console.warn('loadAssets failed', e); }
-  try { await loadVfx(); } catch (e) { console.warn('loadVfx failed', e); }
-  const savedName = localStorage.getItem('sproutopia_name');
-  if (savedName) document.getElementById('name-input').value = savedName;
-  renderer.draw({ world, me: { id: '', x: 1600, y: 700, face: 1, anim: 'idle', punchT: 0, look: me.look }, players: new Map(), target: null }, performance.now());
+  try {
+    // Asset loading must NEVER kill the render loop: a single failed image
+    // used to reject the whole boot, leaving a blank canvas with working UI.
+    try { await loadAssets(); } catch (e) { console.warn('loadAssets failed', e); }
+    try { await loadVfx(); } catch (e) { console.warn('loadVfx failed', e); }
+    const savedName = storage.get('sproutopia_name');
+    if (savedName) {
+      const el = document.getElementById('guest-name');
+      if (el) el.value = savedName;
+    }
+    renderer.draw({ world, me: { id: '', x: 1600, y: 700, face: 1, anim: 'idle', punchT: 0, look: me.look }, players: new Map(), target: null }, performance.now());
+  } catch (e) {
+    reportClientError('boot: ' + (e && e.message), '', 0, 0, e && e.stack);
+  }
   // debug/testing handle (harmless in production)
   window.__game = { net, me, world, ui, input, renderer, vfx };
   requestAnimationFrame(frame);
+  // archived login bypass: go straight into the game
+  autoPlay();
 })();

@@ -14,6 +14,9 @@ const TILE_FILES = {
   deco_blue: 'tiles/deco_blue.png', glow: 'tiles/glow.png',
   // objects (from asset pack)
   obj_door: 'objects/door.png', obj_door_blue: 'objects/door_blue.png',
+  obj_door_white: 'objects/door_white.png',
+  obj_flower_red: 'objects/flower_red.png', obj_flower_yellow: 'objects/flower_yellow.png',
+  obj_flower_white: 'objects/flower_white.png',
   obj_door_barn: 'objects/door_barn.png', obj_sign: 'objects/sign.png',
   obj_torch: 'objects/torch.png', obj_worldlock: 'objects/worldlock.png',
   obj_chest: 'objects/chest.png', obj_crate: 'objects/crate.png',
@@ -28,6 +31,20 @@ const FLORA_FILES = { seed: 'flora/seed.png', sapling: 'flora/sapling.png', tree
 // disk for future features; see docs/ASSET_REGISTRY.md).
 const UI_FILES = {
   backpack: 'ui/backpack.png', fist: 'ui/fist.png',
+  // Hattopia UI pack (user-supplied): HUD buttons, hotbar, inventory.
+  btn_menu: 'ui/ui_btn_menu.png', btn_chat: 'ui/ui_btn_chat.png',
+  btn_emote: 'ui/ui_btn_emote.png',
+  announcement_panel: 'ui/ui_announcement_panel.png',
+  arrow_left: 'ui/ui_arrow_left.png', arrow_right: 'ui/ui_arrow_right.png',
+  btn_jump: 'ui/ui_btn_jump.png', btn_punch: 'ui/ui_btn_punch.png',
+  hotbar_slot: 'ui/ui_hotbar_slot.png',
+  hotbar_slot_selected: 'ui/ui_hotbar_slot_selected.png',
+  inventory_panel: 'ui/ui_inventory_panel.png',
+  inventory_slot: 'ui/ui_inventory_slot.png',
+  search_bar: 'ui/ui_search_bar.png',
+  btn_recycle: 'ui/ui_btn_recycle.png', btn_store: 'ui/ui_btn_store.png',
+  btn_drop: 'ui/ui_btn_drop.png', btn_info: 'ui/ui_btn_info.png',
+  btn_small_cyan: 'ui/ui_btn_small_cyan.png',
 };
 
 export const imgs = { tiles: {}, flora: {}, player: {}, ui: {}, wrench: null, gem: null, backdrop: null };

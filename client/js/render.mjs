@@ -102,6 +102,35 @@ export class Renderer {
     this.rain = [];
     this.resize();
     addEventListener('resize', () => this.resize());
+    // pinch-to-zoom on the canvas (mobile)
+    this._pinchD = 0;
+    canvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        this._pinchD = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+      }
+    }, { passive: true });
+    canvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && this._pinchD > 0) {
+        const d = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        if (d > 0) this.setZoom(this.zoom * (d / this._pinchD));
+        this._pinchD = d;
+      }
+    }, { passive: true });
+    canvas.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) this._pinchD = 0;
+    }, { passive: true });
+    // keyboard +/- for desktop
+    addEventListener('keydown', (e) => {
+      if (e.key === '+' || e.key === '=') this.setZoom(this.zoom * 1.1);
+      if (e.key === '-' || e.key === '_') this.setZoom(this.zoom / 1.1);
+      if (e.key === '0') this.setZoom(1);
+    });
   }
   resize() {
     this.dpr = Math.min(devicePixelRatio || 1, 2);
@@ -109,7 +138,23 @@ export class Renderer {
     this.cv.width = Math.round(this.w * this.dpr);
     this.cv.height = Math.round(this.h * this.dpr);
     const portrait = this.h >= this.w;
-    this.scale = Math.min(2.5, Math.max(0.8, this.h / ((portrait ? 15 : 11.5) * TILE)));
+    this.baseScale = Math.min(2.5, Math.max(0.8, this.h / ((portrait ? 15 : 11.5) * TILE)));
+    if (!this.zoom) this.zoom = 1; // user zoom multiplier (persist across resize)
+    // clamp zoom: zoom-out must NOT reveal the whole world.
+    // visible w/h = screen/(baseScale*zoom) must stay < world size (with margin).
+    const maxZoomOut = Math.min(
+      this.w / (this.baseScale * WORLD_W * TILE * 0.45),
+      this.h / (this.baseScale * WORLD_H * TILE * 0.55)
+    );
+    this.minZoom = Math.max(0.45, Math.min(1, maxZoomOut));
+    this.maxZoom = 2.2;
+    this.zoom = Math.min(this.maxZoom, Math.max(this.minZoom, this.zoom));
+    this.scale = this.baseScale * this.zoom;
+  }
+  // user zoom control (pinch / buttons)
+  setZoom(z) {
+    this.zoom = Math.min(this.maxZoom, Math.max(this.minZoom, z));
+    this.scale = this.baseScale * this.zoom;
   }
   updateCamera(px, py) {
     const k = 0.12;
@@ -279,7 +324,38 @@ export class Renderer {
         look: pl.look, name: pl.name || '',
         isOwner: w.lock && w.lock.ownerId === pl.id,
         t, punchT: isMe ? state.me.punchT : (pl.anim === 'punch' ? 0.2 : 0),
+        ghost: isMe && state.me.noclip,
       });
+    }
+    // chat bubbles above players' heads (5s expiry)
+    if (w.bubbles && w.bubbles.size) {
+      const now = performance.now();
+      for (const [pid, b] of [...w.bubbles]) {
+        if (b.until < now) { w.bubbles.delete(pid); continue; }
+        let px = null, py = null;
+        if (pid === state.me.id) { px = state.me.x; py = state.me.y; }
+        else { const pl = state.players.get(pid); if (pl) { px = pl.x; py = pl.y; } }
+        if (px === null) continue;
+        const text = String(b.text).slice(0, 60);
+        ctx.font = 'bold 13px system-ui, sans-serif';
+        const tw = Math.min(220, ctx.measureText(text).width + 16);
+        const bx = px - tw / 2, by = py - 52;
+        // bubble background
+        ctx.fillStyle = 'rgba(20,30,50,0.92)';
+        ctx.strokeStyle = '#7fd4e8'; ctx.lineWidth = 2;
+        this.roundRect(ctx, bx, by, tw, 24, 8); ctx.fill(); ctx.stroke();
+        // tail
+        ctx.fillStyle = 'rgba(20,30,50,0.92)';
+        ctx.beginPath();
+        ctx.moveTo(px - 6, by + 22); ctx.lineTo(px + 6, by + 22); ctx.lineTo(px, by + 30);
+        ctx.closePath(); ctx.fill();
+        // text (clipped)
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.save();
+        ctx.beginPath(); ctx.rect(bx, by, tw, 24); ctx.clip();
+        ctx.fillText(text, px, by + 12, tw - 10);
+        ctx.restore();
+      }
     }
     // sign proximity labels (world space; show within ~3.5 tiles, hide beyond ~4.5)
     if (w.signs && w.signs.size) {

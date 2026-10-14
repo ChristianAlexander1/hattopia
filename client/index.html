@@ -24,47 +24,57 @@
     <button id="btn-help" class="pill" title="Help">?</button>
   </div>
 
+  <!-- chat overlay (persistent, top of screen) -->
+  <div id="chat-overlay" class="hidden"></div>
+
+  <!-- announcement panel (top center) -->
+  <div id="announce" class="hidden"><span id="announce-text"></span></div>
+
   <!-- hotbar -->
   <div id="hotbar" class="hidden"></div>
 
   <!-- side buttons -->
   <div id="sidebtns" class="hidden">
-    <button id="btn-inv" title="Backpack"><img src="img/ui/backpack.png" alt="Backpack"></button>
-    <button id="btn-chat" title="Chat">💬<span id="chat-badge" class="hidden"></span></button>
+    <button id="btn-menu" title="Menu"><img src="img/ui/ui_btn_menu.png" alt="Menu"></button>
+    <button id="btn-chat" title="Chat"><img src="img/ui/ui_btn_chat.png" alt="Chat"><span id="chat-badge" class="hidden"></span></button>
+    <button id="btn-emote" title="Social"><img src="img/ui/ui_btn_emote.png" alt="Social"></button>
   </div>
 
   <!-- touch controls -->
   <div id="touch" class="hidden">
     <div id="touch-left">
-      <button id="t-left" class="tbtn">◀</button>
-      <button id="t-right" class="tbtn">▶</button>
+      <button id="t-left" class="tbtn"><img src="img/ui/ui_arrow_left.png" alt="Left"></button>
+      <button id="t-right" class="tbtn"><img src="img/ui/ui_arrow_right.png" alt="Right"></button>
     </div>
     <div id="touch-right">
-      <button id="t-punch" class="tbtn"><img src="img/ui/fist.png" alt="Punch"></button>
-      <button id="t-jump" class="tbtn">▲</button>
+      <button id="t-punch" class="tbtn"><img src="img/ui/ui_btn_punch.png" alt="Punch"></button>
+      <button id="t-jump" class="tbtn"><img src="img/ui/ui_btn_jump.png" alt="Jump"></button>
     </div>
   </div>
 
   <!-- inventory panel -->
   <div id="inv-panel" class="panel hidden">
     <div class="panel-head"><b>Backpack</b><button class="x" data-close="inv-panel">✕</button></div>
+    <div id="inv-search-wrap"><input id="inv-search" maxlength="40" placeholder="Search items…" autocomplete="off"></div>
     <div id="inv-grid"></div>
     <div id="inv-detail" class="hidden">
       <b id="inv-name"></b><span id="inv-count"></span>
       <p id="inv-desc"></p>
-      <div class="row">
-        <button id="inv-drop">Drop</button>
-        <button id="inv-close-detail">Done</button>
+      <div class="row inv-actions">
+        <button id="inv-drop" title="Drop item"><img src="img/ui/ui_btn_drop.png" alt="Drop"></button>
+        <button id="inv-info" title="Item info"><img src="img/ui/ui_btn_info.png" alt="Info"></button>
+        <button id="inv-recycle" title="Recycle (not available yet)" disabled><img src="img/ui/ui_btn_recycle.png" alt="Recycle"></button>
+        <button id="inv-store" title="Store (not available yet)" disabled><img src="img/ui/ui_btn_store.png" alt="Store"></button>
+        <button id="inv-close-detail" class="inv-done"><img src="img/ui/ui_btn_small_cyan.png" alt="Done"><span>Done</span></button>
       </div>
     </div>
   </div>
 
   <!-- chat panel -->
-  <div id="chat-panel" class="panel hidden">
-    <div class="panel-head"><b>Chat</b><button class="x" data-close="chat-panel">✕</button></div>
-    <div id="chat-log"></div>
-    <div class="row"><input id="chat-input" maxlength="120" placeholder="Say something…  (/join WORLD)" autocomplete="off">
-    <button id="chat-send">➤</button></div>
+  <!-- chat input bar (appears when chat button pressed, like Growtopia) -->
+  <div id="chat-bar" class="hidden">
+    <input id="chat-input" maxlength="120" placeholder="Say something…" autocomplete="off">
+    <button id="chat-send">✓</button>
   </div>
 
   <!-- dialogs -->
@@ -77,12 +87,21 @@
   </div>
 
   <div id="dlg-world" class="dlg hidden">
-    <div class="dlg-box">
-      <h3>Visit a world</h3>
-      <input id="world-input" maxlength="16" placeholder="WORLD NAME" autocomplete="off">
-      <div class="row"><button id="world-go">Go</button><button data-close="dlg-world">Cancel</button></div>
-      <h4>🌐 Browse worlds</h4>
-      <div id="world-list" class="world-list"><div class="wrow dim">Loading…</div></div>
+    <div class="dlg-box wide world-browser">
+      <div id="world-syslog"></div>
+      <div class="world-title">Tap 'Create World' to enter this world!</div>
+      <div class="row world-name-row"><label>World Name: <input id="world-input" maxlength="16" placeholder="WORLD NAME" autocomplete="off"></label></div>
+      <div class="world-section">Top Worlds:</div>
+      <div id="world-top" class="world-chips"></div>
+      <div class="world-section">My Worlds:</div>
+      <div id="world-mine" class="world-chips"></div>
+      <div class="world-section">Recently Visited Worlds:</div>
+      <div id="world-recent" class="world-chips"></div>
+      <div class="world-actions">
+        <button id="world-back" class="wbtn">Back</button>
+        <button id="world-home" class="wbtn">🏠</button>
+        <button id="world-go" class="wbtn big">Enter World</button>
+      </div>
     </div>
   </div>
 
@@ -172,9 +191,10 @@
       <div class="lf-panel">
         <div id="hatid-login">
           <h3>I have a HatID</h3>
-          <label>HatID: <input id="hatid-name" maxlength="16" placeholder="In-game name" autocomplete="off"></label>
-          <label>Password: <input id="hatid-pass" type="password" maxlength="64" placeholder="Password" autocomplete="current-password"></label>
-          <button id="btn-hatid" class="menu-btn">Connect</button>
+          <label class="hatid-toggle"><input type="checkbox" id="hatid-mode"> Use HatID login</label>
+          <label>HatID: <input id="hatid-name" maxlength="16" placeholder="In-game name" autocomplete="off" disabled></label>
+          <label>Password: <input id="hatid-pass" type="password" maxlength="64" placeholder="Password" autocomplete="current-password" disabled></label>
+          <button id="btn-hatid" class="menu-btn" disabled>Connect</button>
           <p class="lf-hint">No HatID yet? <a id="lf-showreg" href="#">Get one — it's free!</a></p>
         </div>
         <div id="hatid-reg" class="hidden">
@@ -199,6 +219,10 @@
       <div class="row"><label>Visual quality: <select id="sel-quality">
         <option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option>
       </select></label></div>
+      <div class="skin-section">
+        <div class="skin-title">Select a skin color:</div>
+        <div id="skin-picker" class="skin-picker"></div>
+      </div>
       <div class="row"><button data-close="dlg-options">Close</button></div>
     </div>
   </div>
@@ -209,6 +233,47 @@
       <p>A tiny multiplayer sandbox. Punch, plant, build — with friends, in your browser.</p>
       <p class="hint">Original fan-style game. Not affiliated with Growtopia.</p>
       <div class="row"><button data-close="dlg-about">Close</button></div>
+    </div>
+  </div>
+
+  <!-- in-game menu (menu button) -->
+  <div id="dlg-menu" class="dlg hidden">
+    <div class="dlg-box menu-box">
+      <button class="menu-btn" id="m-exit">Exit World</button>
+      <button class="menu-btn" id="m-respawn">Respawn</button>
+      <button class="menu-btn" id="m-options">Options</button>
+      <button class="menu-btn" id="m-support">Support</button>
+      <button class="menu-btn hidden" id="m-gethatid">Get HatID</button>
+      <button class="menu-btn" id="m-logout">Logout</button>
+      <button class="menu-btn" id="m-back">Back</button>
+      <div id="menu-world">Current World: -</div>
+    </div>
+  </div>
+
+  <!-- get HatID dialog (for guests) -->
+  <div id="dlg-gethatid" class="dlg hidden">
+    <div class="dlg-box">
+      <h3>Get a HatID</h3>
+      <p class="hint">Claim your guest name with a password to keep it.</p>
+      <label>Password: <input id="gethatid-pass" type="password" maxlength="64" placeholder="6+ characters" autocomplete="new-password"></label>
+      <div class="row"><button id="gethatid-ok">Claim</button><button data-close="dlg-gethatid">Cancel</button></div>
+      <p id="gethatid-err" class="err"></p>
+    </div>
+  </div>
+
+  <!-- social portal (dummy for now) -->
+  <div id="dlg-social" class="dlg hidden">
+    <div class="dlg-box social-box">
+      <h3>Social Portal</h3>
+      <button class="menu-btn" data-dummy>Show Friends</button>
+      <button class="menu-btn" data-dummy>Show Leaderboard</button>
+      <button class="menu-btn" data-dummy>Create Guild</button>
+      <button class="menu-btn" data-dummy>Entertainment</button>
+      <button class="menu-btn" data-dummy>Job Forum</button>
+      <button class="menu-btn" data-dummy>Trade History</button>
+      <button class="menu-btn" data-dummy>Global Trades</button>
+      <button class="menu-btn" data-dummy>Activity Hub</button>
+      <div class="row"><button data-close="dlg-social">Close</button></div>
     </div>
   </div>
 

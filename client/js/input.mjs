@@ -3,7 +3,7 @@ export class Input {
   constructor(canvas, cb) {
     this.cb = cb;
     this.keys = {};
-    this.touch = { left: false, right: false, jump: false };
+    this.touch = { left: false, right: false, jump: false, down: false };
     this.screenToWorld = null; // set by main: (sx,sy) => {x,y} world px
     this.tapPlayerAt = null;   // set by main: (wx,wy) => playerId | null
 
@@ -48,7 +48,9 @@ export class Input {
     const wpt = this.screenToWorld(sx, sy);
     if (this.tapPlayerAt) {
       const pid = this.tapPlayerAt(wpt.x, wpt.y);
-      if (pid) { this.cb.onTapPlayer && this.cb.onTapPlayer(pid); return; }
+      // onTapPlayer returns true if it handled the tap (e.g. wrench dialog);
+      // otherwise fall through to tile tap (punch).
+      if (pid && this.cb.onTapPlayer && this.cb.onTapPlayer(pid)) return;
     }
     const tx = Math.floor(wpt.x / 32), ty = Math.floor(wpt.y / 32);
     this.cb.onTap && this.cb.onTap(tx, ty, sx, sy);
@@ -56,4 +58,5 @@ export class Input {
   get left() { return !!(this.keys.ArrowLeft || this.keys.KeyA || this.touch.left); }
   get right() { return !!(this.keys.ArrowRight || this.keys.KeyD || this.touch.right); }
   get jumpHeld() { return !!(this.keys.Space || this.keys.ArrowUp || this.keys.KeyW || this.touch.jump); }
+  get downHeld() { return !!(this.keys.ArrowDown || this.keys.KeyS || this.touch.down); }
 }

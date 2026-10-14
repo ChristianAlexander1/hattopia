@@ -2,12 +2,25 @@
 import { TILE, PHYS } from '../../shared/constants.mjs';
 
 export function makeBody(x, y) {
-  return { x, y, vx: 0, vy: 0, w: 22, h: 44, face: 1, onGround: false, coyote: 0, jumpBuf: 0, punchT: 0, anim: 'idle' };
+  return { x, y, vx: 0, vy: 0, w: 20, h: 30, face: 1, onGround: false, coyote: 0, jumpBuf: 0, punchT: 0, anim: 'idle' };
 }
 
 export function stepBody(p, inp, solid, dt) {
   const P = PHYS;
   dt = Math.min(dt, 1 / 20);
+  // noclip: fly freely (no gravity, no collision), up/down via jump/down inputs
+  if (p.noclip) {
+    const want = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
+    if (want !== 0) p.face = want;
+    const spd = P.maxRun * 1.5;
+    p.vx += ((want * spd) - p.vx) * Math.min(1, 10 * dt);
+    const vyWant = (inp.downHeld ? 1 : 0) - (inp.jumpHeld ? 1 : 0);
+    p.vy += ((vyWant * spd) - p.vy) * Math.min(1, 10 * dt);
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.onGround = false;
+    return;
+  }
   // horizontal
   const want = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
   if (want !== 0) p.face = want;

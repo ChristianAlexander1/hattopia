@@ -58,7 +58,7 @@ function validLook(l) {
 }
 const DEFAULT_LOOK = { skin: 'e3ac72', hair: '', shirt: '', pants: '2f3a5c', face: 'classic' };
 const sanitize = (s) => String(s).replace(/[<>&"]/g, '').slice(0, CHAT_MAX_LEN).trim();
-const validName = (n) => /^[A-Za-z0-9_]{3,16}$/.test(n || '');
+const validName = (n) => /^@?[A-Za-z0-9_]{3,16}$/.test(n || '');
 const validWorldName = (n) => /^[A-Za-z0-9_]{1,16}$/.test(n || '');
 
 // ---------- farming ----------
@@ -90,6 +90,29 @@ class WorldState {
     this.dirty = false;
     this.created_at = data.created_at || now();
     this.spawn = data.spawn || { x: 50 * TILE + TILE / 2, y: 24 * TILE };
+    // Find the white exit door (item 43). If the world doesn't have one
+    // (old worlds), place it near spawn on solid ground.
+    let doorIdx = -1;
+    for (let i = 0; i < this.fg.length; i++) {
+      if (this.fg[i] === 43) { doorIdx = i; break; }
+    }
+    if (doorIdx === -1) {
+      // place door: 4 tiles right of spawn-x, on the surface
+      const dx = 54, dy = 29;
+      if (this.fg[dy * WORLD_W + dx] === 0) {
+        this.fg[dy * WORLD_W + dx] = 43;
+        // ensure solid footing below (bedrock like new worlds)
+        if (this.fg[(dy + 1) * WORLD_W + dx] === 0) this.fg[(dy + 1) * WORLD_W + dx] = 7;
+        doorIdx = dy * WORLD_W + dx;
+        this.dirty = true;
+      }
+    }
+    // Spawn on the ground NEXT TO the door (2 tiles left), not on the
+    // door tile itself. Otherwise keep the stored/default spawn.
+    if (doorIdx !== -1) {
+      const dx = doorIdx % WORLD_W, dy = Math.floor(doorIdx / WORLD_W);
+      this.spawn = { x: (dx - 2) * TILE + TILE / 2, y: dy * TILE + TILE / 2 };
+    }
   }
   tileSolid(tx, ty) {
     if (!inBounds(tx, ty)) return true;
@@ -174,7 +197,8 @@ export class Game {
     } else {
       const g = generateWorld(name);
       w = new WorldState({ name, fg: g.fg, bg: g.bg, seeds: new Map(), lock: null, weather: null });
-      w.spawn = g.spawn;
+      // NOTE: do NOT overwrite w.spawn here — the WorldState constructor already
+      // scanned for the white door (item 43) and set spawn to it.
       w.markDirty();
     }
     this.worlds.set(name, w);
@@ -232,6 +256,7 @@ export class Game {
   notice(p, text) { this.send(p, { t: 'notice', text }); }
 
   canEdit(p, w) {
+    if (this.isAdmin(p)) return true; // admin bypasses world locks
     if (!w.lock) return true;
     return w.lock.access.includes(p.id);
   }
@@ -274,12 +299,16 @@ export class Game {
       if (!validName(msg.name)) { ws.send(JSON.stringify({ t: 'error', text: 'Pick a name: 3-16 letters, numbers, _.' })); return; }
       const existing = store.getPlayerByName(msg.name);
       if (msg.password !== undefined) {
-        // HatID login: name + password
+        // HatID login: name + password (case-insensitive, preserves registered casing)
         if (this.authThrottled(ws)) { ws.send(JSON.stringify({ t: 'error', text: 'Too many attempts. Wait a minute and try again.' })); return; }
         if (!existing) { this.authFail(ws); ws.send(JSON.stringify({ t: 'error', text: 'No HatID found for that name.' })); return; }
         if (!existing.password_hash) { this.authFail(ws); ws.send(JSON.stringify({ t: 'error', text: 'That name has no HatID yet — connect as guest first, then get one from Help.' })); return; }
         if (!verifyPassword(msg.password, existing.password_hash)) { this.authFail(ws); ws.send(JSON.stringify({ t: 'error', text: 'Wrong password.' })); return; }
         p = this.loadPlayer(existing);
+        // admin: "admin" -> "@Admin" display name
+        if (p.name.toLowerCase() === 'admin' || p.name.toLowerCase() === '@admin') {
+          p.name = '@Admin';
+        }
       } else {
         // Guest login: name must be free, or a guest name (no HatID)
         if (existing) {
@@ -395,6 +424,16 @@ export class Game {
     }
 
     const fgId = w.fg[i];
+    // White exit door: punching it opens the world browser (exit to navigation).
+    // Always exits, even for owners — it is a permanent world fixture.
+    if (itemById(fgId)?.action === 'exit') {
+      if (t - p.lastDoorAt < 2000) return;
+      p.lastDoorAt = t;
+      this.notice(p, 'You step through the white door...');
+      this.send(p, { t: 'openWorlds' });
+      this.broadcast(w, { t: 'fx', kind: 'door', x: p.x, y: p.y });
+      return;
+    }
     // Door policy (documented): visitors punch to travel to spawn; players with
     // edit permission punch to break (doors must be removable by owners).
     // Teleport is intra-world movement, never a lock bypass.
@@ -422,12 +461,16 @@ export class Game {
     }
 
     if (!this.canEdit(p, w)) { this.notice(p, 'This world is locked.'); return; }
+    const isAdmin = this.isAdmin(p);
     const applyDamage = (arr, id, isBg) => {
       const it = itemById(id);
-      if (!it || !isFinite(it.hardness)) { if (id) this.notice(p, 'Unbreakable!'); return; }
+      // admin can break anything (including bedrock)
+      if (!it || (!isFinite(it.hardness) && !isAdmin)) { if (id) this.notice(p, 'Unbreakable!'); return; }
       const cur = w.damage.get(i) || { dmg: 0, at: 0 };
       cur.dmg += 1; cur.at = t;
-      if (cur.dmg >= it.hardness) {
+      // admin breaks unbreakable (bedrock) in 1 hit
+      const need = isAdmin && !isFinite(it.hardness) ? 1 : it.hardness;
+      if (cur.dmg >= need) {
         w.damage.delete(i);
         if (isBg) w.bg[i] = 0; else { if (id === 9) w.signs.delete(i); w.fg[i] = 0; }
         w.markDirty();
@@ -577,12 +620,17 @@ export class Game {
     for (const row of store.listWorldMeta()) {
       const w = this.worlds.get(row.name.toUpperCase());
       seen.add(row.name.toUpperCase());
-      list.push({ name: row.name, players: w ? w.players.size : 0, locked: !!(w ? w.lock : row.lock) });
+      let ownerName = null;
+      try {
+        const lk = w ? w.lock : (row.lock ? JSON.parse(row.lock) : null);
+        ownerName = lk?.ownerName || null;
+      } catch {}
+      list.push({ name: row.name, players: w ? w.players.size : 0, locked: !!(w ? w.lock : row.lock), ownerName });
     }
     // include live worlds not yet persisted
     for (const [name, w] of this.worlds) {
       if (seen.has(name)) continue;
-      list.push({ name, players: w.players.size, locked: !!w.lock });
+      list.push({ name, players: w.players.size, locked: !!w.lock, ownerName: w.lock?.ownerName || null });
     }
     this.send(p, { t: 'worlds', worlds: list.slice(0, 50), current: p.world });
   }
@@ -618,9 +666,66 @@ export class Game {
       const [cmd, ...rest] = text.slice(1).split(' ');
       if (cmd === 'join' && rest[0]) { this.joinWorld(p, rest[0]); return; }
       if (cmd === 'help') { this.notice(p, 'Commands: /join WORLDNAME'); return; }
+      // ---- admin commands (@Admin only) ----
+      if (this.isAdmin(p)) {
+        if (cmd === 'find' && rest[0]) {
+          const q = rest.join(' ').toLowerCase();
+          const found = [];
+          for (const [id, it] of Object.entries(ITEMS)) {
+            if (it.name.toLowerCase().includes(q)) {
+              found.push(`${it.name} (id:${id})`);
+              if (found.length >= 10) break;
+            }
+          }
+          this.notice(p, found.length ? 'Found: ' + found.join(', ') : 'No items found for "' + q + '"');
+          return;
+        }
+        if (cmd === 'weather' && rest[0]) {
+          const kind = rest[0].toLowerCase();
+          const valid = ['clear', 'cloudy', 'drizzle', 'rain', 'heavy', 'storm', 'fog', 'snow'];
+          if (valid.includes(kind)) {
+            w.weather = kind;
+            this.broadcast(w, { t: 'weather', kind });
+            this.notice(p, 'Weather set to ' + kind);
+          } else {
+            this.notice(p, 'Valid: ' + valid.join(', '));
+          }
+          return;
+        }
+        if (cmd === 'noclip') {
+          p.noclip = !p.noclip;
+          this.notice(p, 'Noclip ' + (p.noclip ? 'ON' : 'OFF'));
+          this.send(p, { t: 'noclip', on: p.noclip });
+          return;
+        }
+        if (cmd === 'clear') {
+          let n = 0;
+          for (let i = 0; i < w.fg.length; i++) {
+            const id = w.fg[i];
+            // clear everything except bedrock (7), white door (43), world lock (50)
+            if (id !== 0 && id !== 7 && id !== 43 && id !== 50) {
+              w.fg[i] = 0; n++;
+            }
+          }
+          w.bg.fill(0);
+          w.dirty = true;
+          this.broadcast(w, { t: 'world', name: w.name, fg: Array.from(w.fg), bg: Array.from(w.bg),
+            seeds: [], signs: [], drops: [...w.drops.values()], lock: w.lock, weather: w.weather,
+            spawn: w.spawn, canEdit: true, players: [...w.players.values()].map(pl => ({ id: pl.id, name: pl.name, x: pl.x, y: pl.y, face: pl.face })) });
+          this.notice(p, `World cleared (${n} tiles removed, bedrock kept)`);
+          return;
+        }
+        if (cmd === 'admin') {
+          this.notice(p, 'Admin commands: /find ITEM, /weather TYPE, /noclip, /clear');
+          return;
+        }
+      }
       this.notice(p, 'Unknown command. Try /help'); return;
     }
     this.broadcast(w, { t: 'chat', from: p.name, id: p.id, text });
+  }
+  isAdmin(p) {
+    return p.name === '@Admin';
   }
 
   // ----- appearance -----

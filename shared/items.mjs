@@ -44,6 +44,13 @@ export const ITEMS = {
   29: { name: 'Blue Door',     kind: 'deco', layer: 'fg', collision: 'solid', hardness: 6,        rarity: 8, seed: 129, tile: 'obj_door_blue', action: 'door' },
   30: { name: 'Barn Door',     kind: 'deco', layer: 'fg', collision: 'solid', hardness: 6,        rarity: 8, seed: 130, tile: 'obj_door_barn', action: 'door' },
   31: { name: 'Chest',         kind: 'deco', layer: 'fg', collision: 'none',  hardness: 4,        rarity: 10, seed: 131, tile: 'obj_chest' },
+  // White exit door: generated in every new world near spawn. Punching it
+  // opens the world browser (action 'exit'). Unbreakable world fixture.
+  43: { name: 'White Door',    kind: 'block', layer: 'fg', collision: 'none', hardness: Infinity, rarity: 99, seed: null, tile: 'obj_door_white', action: 'exit' },
+  // Decorative flowers for new-world generation (non-solid, breakable).
+  44: { name: 'Red Flower',    kind: 'deco', layer: 'fg', collision: 'none',  hardness: 1,        rarity: 2, seed: null, tile: 'obj_flower_red' },
+  45: { name: 'Yellow Flower', kind: 'deco', layer: 'fg', collision: 'none',  hardness: 1,        rarity: 2, seed: null, tile: 'obj_flower_yellow' },
+  46: { name: 'White Flower',  kind: 'deco', layer: 'fg', collision: 'none',  hardness: 1,        rarity: 2, seed: null, tile: 'obj_flower_white' },
   32: { name: 'Crate',         kind: 'deco', layer: 'fg', collision: 'solid', hardness: 4,        rarity: 4, seed: 132, tile: 'obj_crate' },
   33: { name: 'Bed',           kind: 'deco', layer: 'fg', collision: 'none',  hardness: 4,        rarity: 5, seed: 133, tile: 'obj_chair' }, // note: bed.png/chair.png art is swapped; this maps to the bed visual
   34: { name: 'Chair',         kind: 'deco', layer: 'fg', collision: 'none',  hardness: 3,        rarity: 4, seed: 134, tile: 'obj_bed' }, // maps to the chair visual

@@ -31,23 +31,36 @@ button.pill{min-height:44px;min-width:44px;}
 .slot img{width:100%;height:100%;object-fit:contain;image-rendering:pixelated;pointer-events:none;}
 .slot .n{position:absolute;right:2px;bottom:0;font-size:11px;color:#fff;text-shadow:0 1px 2px #000;pointer-events:none;}
 .slot .k{position:absolute;left:3px;top:0;font-size:9px;color:#ffffff88;pointer-events:none;}
+/* Hattopia UI pack: hotbar slots use the supplied art */
+#hotbar .slot{background:url('../img/ui/ui_hotbar_slot.png') center/contain no-repeat;border:none;width:52px;height:52px;min-width:52px;border-radius:0;}
+#hotbar .slot.sel{background-image:url('../img/ui/ui_hotbar_slot_selected.png');}
+#hotbar .slot img{width:72%;height:72%;position:absolute;left:14%;top:14%;}
+/* Hattopia UI pack: inventory grid slots */
+#inv-grid .slot{background:url('../img/ui/ui_inventory_slot.png') center/contain no-repeat;border:none;border-radius:0;}
 
 /* side buttons */
 #sidebtns{position:absolute;right:calc(var(--sar) + 10px);top:calc(var(--sat) + 64px);
   display:flex;flex-direction:column;gap:10px;z-index:20;}
-#sidebtns button{width:52px;height:52px;border-radius:50%;font-size:24px;background:#101827d9;
-#sidebtns button img,.tbtn img{width:70%;height:70%;object-fit:contain;pointer-events:none;}
-  border:1px solid #ffffff2a;color:#fff;cursor:pointer;position:relative;}
+#sidebtns button{width:52px;height:52px;border-radius:12px;background:transparent;
+  border:none;cursor:pointer;position:relative;padding:0;}
+#sidebtns button img,.tbtn img{width:100%;height:100%;object-fit:contain;pointer-events:none;image-rendering:pixelated;}
+#sidebtns button:disabled{opacity:.45;filter:grayscale(.4);}
 #chat-badge{position:absolute;top:2px;right:2px;background:#ff5252;border-radius:50%;
   width:16px;height:16px;font-size:11px;line-height:16px;}
 
-/* touch controls */
+/* touch controls (Hattopia UI pack art) */
 #touch{position:absolute;inset:auto 0 0 0;pointer-events:none;z-index:15;}
 #touch-left{position:absolute;left:calc(var(--sal) + 14px);bottom:calc(var(--sab) + 76px);display:flex;gap:12px;pointer-events:auto;}
 #touch-right{position:absolute;right:calc(var(--sar) + 14px);bottom:calc(var(--sab) + 76px);display:flex;gap:12px;pointer-events:auto;}
-.tbtn{width:72px;height:72px;border-radius:50%;font-size:30px;background:#ffffff1c;color:#fff;
-  border:2px solid #ffffff3a;backdrop-filter:blur(2px);}
-.tbtn:active{background:#ffffff44;}
+.tbtn{width:76px;height:76px;background:transparent;border:none;padding:0;cursor:pointer;
+  filter:drop-shadow(0 2px 4px #0008);}
+.tbtn:active{filter:drop-shadow(0 2px 4px #0008) brightness(1.25);}
+/* announcement panel (top center) */
+#announce{position:absolute;top:calc(var(--sat) + 54px);left:50%;transform:translateX(-50%);
+  z-index:25;pointer-events:none;max-width:92vw;}
+#announce span{display:block;background:url('../img/ui/ui_announcement_panel.png') center/100% 100% no-repeat;
+  padding:14px 28px;font-size:14px;color:#fff;text-shadow:0 1px 3px #000;text-align:center;
+  min-width:200px;min-height:44px;box-sizing:border-box;}
 
 /* panels */
 .panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:40;
@@ -55,19 +68,55 @@ button.pill{min-height:44px;min-width:44px;}
   width:min(420px,94vw);max-height:76vh;display:flex;flex-direction:column;overflow:hidden;}
 .panel-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid #ffffff1c;}
 .panel-head .x{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;}
+/* Hattopia UI pack: inventory panel background */
+#inv-panel{background:url('../img/ui/ui_inventory_panel.png') center/100% 100% no-repeat;
+  background-color:transparent;border:none;border-radius:0;padding:18px;box-sizing:border-box;}
+#inv-search-wrap{margin:0 4px 8px;background:url('../img/ui/ui_search_bar.png') center/100% 100% no-repeat;padding:8px 14px;}
+#inv-search{width:100%;background:transparent;border:none;outline:none;color:#fff;font-size:14px;box-sizing:border-box;}
+#inv-search::placeholder{color:#ffffff88;}
 #inv-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding:12px;overflow-y:auto;}
 #inv-grid .slot{width:100%;height:auto;aspect-ratio:1;}
 #inv-detail{padding:12px;border-top:1px solid #ffffff1c;}
 #inv-detail p{color:#ffffffaa;font-size:13px;margin:6px 0;}
+/* inventory action buttons (Hattopia UI pack) */
+.inv-actions{justify-content:center;flex-wrap:wrap;}
+.inv-actions button{background:transparent;border:none;padding:0;cursor:pointer;position:relative;}
+.inv-actions button img{width:84px;height:auto;image-rendering:pixelated;pointer-events:none;display:block;}
+.inv-actions button:disabled{opacity:.45;filter:grayscale(.4);cursor:not-allowed;}
+.inv-actions .inv-done img{width:96px;}
+.inv-actions .inv-done span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:13px;font-weight:bold;text-shadow:0 1px 2px #000;pointer-events:none;}
 .row{display:flex;gap:8px;align-items:center;}
 .row.col{flex-direction:column;align-items:stretch;}
 .panel button, .dlg button{background:var(--accent2);color:#fff;border:none;border-radius:8px;
   padding:9px 14px;font-size:15px;cursor:pointer;margin:4px 0;min-height:44px;}
-#chat-log{flex:1;overflow-y:auto;padding:10px 14px;min-height:180px;max-height:40vh;font-size:14px;}
-#chat-log div{margin:3px 0;word-wrap:break-word;}
+#chat-log{flex:1;overflow-y:auto;padding:10px 14px;min-height:180px;max-height:40vh;font-size:14px;
+  background:#0d1626e6;}
+#chat-log div{margin:3px 0;word-wrap:break-word;line-height:1.4;}
 #chat-log .sys{color:#9fb3c8;font-style:italic;}
-#chat-log b{color:var(--accent);}
+#chat-log .cn{color:#7fd4e8;font-weight:bold;}
+#chat-log .cn.admin{color:#ff8c00;}
+#chat-log .ct{color:#ffffff;}
 #chat-panel .row{padding:10px;border-top:1px solid #ffffff1c;}
+/* chat overlay: persistent recent messages at top of screen (like Growtopia) */
+#chat-overlay{position:absolute;top:calc(var(--sat) + 8px);left:8px;right:8px;z-index:18;
+  max-width:min(640px,94vw);pointer-events:none;font-size:13px;line-height:1.4;
+  background:#0d1b2ad9;border:1px solid #7fd4e855;border-radius:8px;
+  padding:8px 12px;max-height:110px;overflow-y:auto;
+  text-shadow:0 1px 3px #000,0 0 6px #000;}
+#chat-overlay div{margin:2px 0;}
+#chat-overlay .cn{color:#7fd4e8;font-weight:bold;}
+#chat-overlay .cn.admin{color:#ff8c00;}
+#chat-overlay .ct{color:#fff;}
+#chat-overlay .sys{color:#9fb3c8;font-style:italic;}
+/* chat input bar (below the log, like Growtopia) */
+#chat-bar{position:absolute;top:calc(var(--sat) + 128px);left:8px;right:8px;z-index:18;
+  max-width:min(640px,94vw);display:flex;gap:8px;}
+#chat-bar.hidden{display:none;}
+#chat-bar input{flex:1;background:#0d1b2ae6;border:1px solid #7fd4e8;border-radius:8px;
+  color:#fff;padding:10px 14px;font-size:14px;outline:none;}
+#chat-bar button{background:#4a9aaa;color:#fff;border:none;border-radius:8px;
+  padding:10px 18px;font-size:18px;font-weight:bold;cursor:pointer;}
 #chat-input{flex:1;background:#0b1220;border:1px solid #ffffff22;border-radius:8px;color:#fff;
   padding:10px;font-size:15px;user-select:text;-webkit-user-select:text;}
 
@@ -80,6 +129,14 @@ button.pill{min-height:44px;min-width:44px;}
   padding:18px;width:min(380px,94vw);max-height:84vh;overflow-y:auto;}
 .dlg-box.wide{width:min(560px,96vw);}
 .dlg-box h3{margin:0 0 10px;}
+/* in-game menu (Growtopia-style) */
+.menu-box{display:flex;flex-direction:column;gap:10px;align-items:stretch;
+  background:#1a6a8acc;border:2px solid #7fd4e8;border-radius:12px;}
+.menu-box .menu-btn{background:#a8e0f0;color:#1a3a4a;border:none;border-radius:10px;
+  padding:12px 20px;font-size:18px;font-weight:bold;cursor:pointer;text-align:center;}
+.menu-box .menu-btn:active{background:#7fd4e8;}
+#menu-world{background:#a8e0f0;color:#1a3a4a;border-radius:8px;padding:8px;
+  text-align:center;font-size:14px;font-weight:bold;margin-top:4px;}
 .dlg-box input,.dlg-box select{background:#0b1220;border:1px solid #ffffff22;border-radius:8px;
   color:#fff;padding:10px;font-size:16px;width:100%;margin:4px 0;user-select:text;-webkit-user-select:text;}
 .dlg-box ul{font-size:14px;line-height:1.7;padding-left:18px;color:#dfe9f5;}
@@ -94,9 +151,33 @@ button.pill{min-height:44px;min-width:44px;}
   cursor:pointer;min-height:44px;text-align:left;width:100%;}
 .wrow b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .wrow span{color:#9fb3c8;white-space:nowrap;margin-left:8px;}
+/* world browser (Growtopia-style) */
+.world-browser{background:#0d1b2ae6;border:2px solid #7fd4e8;}
+#world-syslog{background:#0a1420;border:1px solid #7fd4e855;border-radius:8px;
+  padding:8px 12px;font-size:12px;max-height:90px;overflow-y:auto;margin-bottom:12px;}
+#world-syslog .dim{color:#7fd4e8;}
+.world-title{text-align:center;font-size:16px;font-weight:bold;margin-bottom:10px;color:#fff;}
+.world-name-row{justify-content:center;margin-bottom:12px;}
+.world-name-row input{width:min(320px,70vw);font-size:16px;padding:10px;text-align:center;
+  background:#1a2a3a;border:2px solid #7fd4e8;border-radius:8px;color:#fff;}
+.world-section{font-size:14px;color:#9fb3c8;margin:10px 0 6px;}
+.world-chips{display:flex;flex-wrap:wrap;gap:8px;min-height:32px;}
+.wchip{background:#2a4a5a;border:2px solid #7fd4e855;border-radius:8px;color:#fff;
+  padding:8px 14px;font-size:14px;cursor:pointer;}
+.wchip.top{background:#6a3a8a;border-color:#b07fd4;}
+.wchip.mine{background:#2a7a3a;border-color:#7fd48a;}
+.wchip.cur{outline:2px solid #ffd700;}
+.wchip span{color:#7fd4e8;font-size:12px;}
+.world-actions{display:flex;gap:12px;justify-content:space-between;margin-top:16px;}
+.wbtn{background:#5a7a8a;color:#fff;border:none;border-radius:10px;padding:14px 24px;
+  font-size:18px;font-weight:bold;cursor:pointer;flex:1;}
+.wbtn.big{flex:2;background:#4a9aaa;}
+.wbtn:active{filter:brightness(1.2);}
 .wrow.cur{border-color:#4ade80;}
 .wrow.dim{cursor:default;color:#9fb3c8;justify-content:center;}
 .hint{font-size:12px;color:#9fb3c8;}
+.hatid-toggle{display:flex;align-items:center;gap:8px;font-weight:bold;margin-bottom:10px;cursor:pointer;}
+.hatid-toggle input{width:18px;height:18px;cursor:pointer;}
 #trade-sides{display:flex;gap:10px;}
 .tside{flex:1;background:#0b1220;border-radius:10px;padding:8px;min-height:150px;display:flex;flex-direction:column;}
 .toffer{flex:1;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;min-height:80px;}
@@ -182,3 +263,12 @@ button.pill{min-height:44px;min-width:44px;}
   background:#7a1f1f;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;
   max-width:92vw;box-shadow:0 2px 12px #000a;}
 #err-toast.hidden{display:none;}
+/* skin color picker (Options, bottom) */
+.skin-section{margin:14px 0 6px;}
+.skin-title{font-size:16px;font-weight:bold;margin-bottom:10px;color:#fff;}
+.skin-picker{display:flex;flex-wrap:wrap;gap:10px;}
+.skin-swatch{width:64px;height:44px;border:3px solid #00000088;border-radius:6px;cursor:pointer;padding:0;}
+.skin-swatch.sel{border-color:#ffff00;box-shadow:0 0 8px #ffff0088;}
+/* social portal (dummy) */
+.social-box{display:flex;flex-direction:column;gap:10px;align-items:stretch;}
+.social-box h3{text-align:center;margin-bottom:6px;}
