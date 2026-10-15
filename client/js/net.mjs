@@ -14,6 +14,11 @@ export class Net {
   }
   connect(name, password) {
     if (name) { this.lastName = name; storage.set('sproutopia_name', name); }
+    // save HatID credentials per device/browser for auto-fill
+    if (password) {
+      storage.set('sproutopia_hatid', name);
+      storage.set('sproutopia_hatid_pass', password);
+    }
     this.wantClose = false;
     this._pendingPassword = password || undefined;
     this._open();

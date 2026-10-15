@@ -1,0 +1,5 @@
+Sproutopia server listening on http://0.0.0.0:8080
+[client-error] Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36 :: Uncaught TypeError: Cannot set properties of null (setting 'onclick') @ https://rcaru-87-81-233-25.free.pinggy.net/js/ui.mjs:71:29 :: TypeError: Cannot set properties of null (setting 'onclick')
+    at UI._bind (https://rcaru-87-81-233-25.free.pinggy.net/js/ui.mjs:71:29)
+    at new UI (https://rcaru-87-81-233-25.free.pinggy.net/js/ui.mjs:18:10)
+    at https://rcaru-87-81-233-25.free.pinggy.net/js/main.mjs?v=20261015s:97:12

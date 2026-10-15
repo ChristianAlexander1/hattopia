@@ -76,6 +76,48 @@ not serverless functions.
 docker build -t hattopia . && docker run -p 8080:8080 hattopia
 ```
 
+## Changelog (2026-10-15)
+
+### Texture Atlas System
+- All 276 block tiles packed into 2 atlas pages (`tiles_page_1.png`, `tiles_page_2.png` — 512×512, 16×16 grid)
+- All 228 seed sprites packed into 1 atlas page (`seeds_page_1.png`)
+- `index.json` maps every tile → `{ page, x, y }` coordinates
+- **Result**: 300+ HTTP requests → ~10, 7.3 MB → ~1 MB. Loading is dramatically faster on mobile.
+- Assets sliced from atlas at load time — render code unchanged.
+
+### Gem System Overhaul
+- 5 gem sprites (yellow/red/purple/green/black) extracted from user reference
+- Red gem = HUD currency icon (bottom-right above hotbar)
+- Denominations: yellow=1, red=10, purple=50, green=80, black=100
+- Server-authoritative floating gem drops on block break (24px bobbing entities)
+- Gems merge and upgrade denomination (10 yellow → 1 red, 5 red → 1 purple)
+- Spawn positions scatter randomly; pickup radius tightened (28px client / 34px server)
+
+### Lock System
+- New lock sprites: World Lock (id 50) + Diamond Lock (id 51), with access/no-access variants
+- Permission-linked rendering: owners see unlocked sprite, visitors see locked sprite
+- Live sprite switching on access grant/revoke (no world reload needed)
+- New seed IDs: 143 (World Lock Seed), 144 (Diamond Lock Seed)
+
+### Block/Seed Expansion (+452 items)
+- 226 new blocks (IDs 1001–1226) + 226 new seeds (IDs 5001–5226) from user-supplied archive
+- Total items: 541, zero ID collisions, all original IDs preserved
+- Searchable via `/find`
+
+### Growtopia-Style Login Flow
+- Title screen → login form → loading screen (matches GT reference)
+- Loading shows: "Getting server address..." → "Located server, connecting..." → "Logging on [name]..." → "Updating items (x/y)..."
+- HatID credentials saved per browser (auto-fill on next visit)
+- Title screen clouds now use the same PNGs as in-game weather
+
+### World Browser & Exit Fixes
+- Header shows "(X Online)" = total players across all worlds (was "X worlds")
+- Exit World button and white door now properly leave the world server-side before showing browser
+
+### Weather
+- Snow: larger flakes (2.2×), white caps on exposed solid tiles
+- Rain splashes anchored to world coordinates (no camera drift)
+
 ## Research
 
 Mechanics researched from public sources — see `docs/RESEARCH.md` for the

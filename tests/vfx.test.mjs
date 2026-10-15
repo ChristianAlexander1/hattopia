@@ -39,9 +39,9 @@ test('spawnSurfaceSplash: ground splash at the visible surface', () => {
   assert.equal(v.splashPool.length, 1, 'one splash spawned');
   const s = v.splashPool[0];
   assert.equal(s.kind, 'ground');
-  // expected screen pos of tile (50,40) top: tile center x, tile top y
-  assert.ok(Math.abs(s.x - (w / 2 + 16)) < 1, `x at tile center, got ${s.x}`);
-  assert.ok(Math.abs(s.y - (h / 2 + (40 * 32 - camY))) < 1, `y at surface, got ${s.y}`);
+  // world coords: tile (50,40) center x, tile top y
+  assert.ok(Math.abs(s.wx - (50 * 32 + 16)) < 1, `wx at tile center, got ${s.wx}`);
+  assert.ok(Math.abs(s.wy - (40 * 32)) < 1, `wy at surface, got ${s.wy}`);
 });
 
 test('spawnSurfaceSplash: ripple on water tiles', () => {

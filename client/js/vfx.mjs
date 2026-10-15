@@ -186,9 +186,9 @@ export class VFX {
       const id = world.fg[ty * WORLD_W + tx];
       if (!id) continue;
       const kind = id === 16 ? 'ripple' : 'ground';
-      const px = (tx * TILE + TILE / 2 - camX) * scale + w / 2;
-      const py = (ty * TILE - camY) * scale + h / 2;
-      this.splashPool.push({ x: px, y: py, t: 0, kind });
+      // store WORLD coords so splash sticks to the ground when camera moves
+      const wy = ty * TILE;
+      this.splashPool.push({ wx: tx * TILE + TILE / 2, wy, t: 0, kind });
       return;
     }
     // no surface in this column: drop falls out of view, no splash
@@ -344,30 +344,44 @@ export class VFX {
   }
 
   // --- render: foreground layer (rain, splashes, wind, fog, lightning) ---
-  renderForeground(ctx, w, h) {
+  renderForeground(ctx, w, h, camX = 0, camY = 0, scale = 1) {
     const c = this.cur;
     if (c.rain > 0.03 || c.snow > 0.03) {
       for (const r of this.rainPool) {
-        let im;
-        if (r.snow) im = vfxImgs.rain[r.v % 2 < 1 ? 'snowflake_1.png' : 'snowflake_2.png'];
-        else if (c.rain < 0.3) im = vfxImgs.rain['rain_drizzle_01.png'];
-        else if (c.wind > 0.6) im = vfxImgs.rain['rain_streak_wind_01.png'];
-        else if (c.rain > 0.8) im = vfxImgs.rain['rain_streak_long_01.png'];
-        else im = vfxImgs.rain['rain_streak_short_01.png'];
-        if (!im) continue;
-        ctx.globalAlpha = r.snow ? 0.9 : 0.55;
-        ctx.drawImage(im, r.x - im.width / 2, r.y - im.height / 2);
+        if (r.snow) {
+          const im = vfxImgs.rain[r.v % 2 < 1 ? 'snowflake_1.png' : 'snowflake_2.png'];
+          if (!im) continue;
+          // scale up snowflakes so they're visible
+          const ss = 2.2;
+          ctx.globalAlpha = 0.95;
+          ctx.drawImage(im, r.x - im.width * ss / 2, r.y - im.height * ss / 2, im.width * ss, im.height * ss);
+        } else {
+          // procedural rain streak: clearly visible slanted line
+          const len = 20 + c.rain * 30;
+          const tilt = c.wind * 0.4 * this.windDir;
+          const dx = Math.sin(tilt) * len, dy = Math.cos(tilt) * len;
+          ctx.globalAlpha = 0.5 + c.rain * 0.35;
+          ctx.strokeStyle = '#8ed4f0';
+          ctx.lineWidth = 2 + c.rain * 2;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(r.x, r.y);
+          ctx.lineTo(r.x - dx * 0.35, r.y - dy);
+          ctx.stroke();
+        }
       }
       ctx.globalAlpha = 1;
     }
 
-    // 5. splashes
+    // 5. splashes (world-anchored: convert to screen each frame)
     for (const s of this.splashPool) {
       const frames = vfxImgs.splashes[s.kind];
       const im = frames[Math.floor(s.t)];
       if (!im) continue;
+      const sx = (s.wx - camX) * scale + w / 2;
+      const sy = (s.wy - camY) * scale + h / 2;
       ctx.globalAlpha = 0.7;
-      ctx.drawImage(im, s.x - 16, s.y - 24, 32, 32);
+      ctx.drawImage(im, sx - im.width / 2, sy - im.height, im.width, im.height);
     }
     ctx.globalAlpha = 1;
 

@@ -19,6 +19,8 @@ function reportClientError(msg, file, line, col, stack) {
   const src = String(file || '') + String(stack || '');
   const m = String(msg || '');
   if (src.includes('ethereum') || src.includes('chrome-extension://') || src.includes('moz-extension://')) return;
+  // also ignore when the message itself mentions injected providers (file/stack may be empty)
+  if (m.includes('ethereum') || m.includes('selectedAddress') || m.includes('chrome-extension://')) return;
   // "Script error." with no file/line/stack is always from an external/injected
   // script (browsers sanitize those); our own errors always have location info.
   if (m === 'Script error.' && !file && !line && !stack) return;
@@ -68,6 +70,8 @@ function solid(tx, ty) {
 // The login UI is ARCHIVED (see docs/LOGIN_ARCHIVE.md), not deleted.
 // Set to false to restore the title + login flow.
 const AUTO_PLAY = false;
+// TEMP-TEST: auto-login as admin (for testing admin commands). Set to false for guest.
+const AUTO_ADMIN = false;
 function autoPlay() {
   if (!AUTO_PLAY) return;
   // hide login UI (kept intact in the DOM for later restore)
@@ -75,24 +79,32 @@ function autoPlay() {
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
   }
+  sfx.unlock();
+  if (AUTO_ADMIN) {
+    // test mode: login as admin directly
+    me.name = 'admin';
+    net.connect('admin', 'akmj');
+    return;
+  }
   // pick a name: saved name, or a random guest name
   let name = storage.get('sproutopia_name');
   if (!/^[A-Za-z0-9_]{3,16}$/.test(name || '')) {
     name = 'Guest' + Math.floor(1000 + Math.random() * 9000);
   }
-  sfx.unlock();
   me.name = name;
   net.connect(name);
 }
 const ui = new UI({
-  onPlay: (name) => { sfx.unlock(); me.name = name; net.connect(name); },
-  onHatIdLogin: (name, password) => { sfx.unlock(); me.name = name; net.connect(name, password); },
-  onRegister: (name, password) => { sfx.unlock(); me.name = name; net.register(name, password); },
+  net: { send: (m) => net.send(m) },
+  onPlay: (name) => { sfx.unlock(); me.name = name; bootWithProgress(() => net.connect(name)); },
+  onHatIdLogin: (name, password) => { sfx.unlock(); me.name = name; bootWithProgress(() => net.connect(name, password)); },
+  onRegister: (name, password) => { sfx.unlock(); me.name = name; bootWithProgress(() => net.register(name, password)); },
   onClaimHatId: (password) => net.claimHatId(password),
   onChat: (text) => net.send({ t: 'chat', text }),
   onSelect: (i) => {},
   onDropItem: (id, count) => net.send({ t: 'dropItem', item: id, count }),
   onJoinWorld: (name) => net.send({ t: 'joinWorld', name }),
+  onLeaveWorld: () => net.send({ t: 'leaveWorld' }),
   onRespawn: () => { me.body.x = world.spawn.x; me.body.y = world.spawn.y; me.body.vx = me.body.vy = 0; renderer.snapCamera(me.body.x, me.body.y); },
   onLogout: () => location.reload(),
   getLook: () => me.look,
@@ -110,7 +122,7 @@ const net = new Net(onNetMessage, (ok) => ui.setConn(ok));
 function onNetMessage(m) {
   switch (m.t) {
     case 'welcome':
-      me.id = m.id; me.look = m.look; me.gems = m.gems;
+      me.id = m.id; me.name = m.name; me.look = m.look; me.gems = m.gems;
       ui.showGame(); ui.onInv([], m.gems);
       break;
     case 'error': ui.loginError(m.text); sfx.error(); break;
@@ -185,6 +197,8 @@ function onNetMessage(m) {
       break;
     case 'look': { const pl = world.players.get(m.id); if (pl) pl.look = m.look; break; }
     case 'inv': ui.onInv(m.slots, m.gems); me.gems = m.gems; break;
+    case 'find_dialog': ui.openFindDialog(m.q || ''); break;
+    case 'find_results': ui.onFindResults(m.items || []); break;
     case 'gems': me.gems = m.gems; ui.setGems(m.gems); break;
     case 'chat':
       ui.addChat(m.from, m.text);
@@ -195,7 +209,12 @@ function onNetMessage(m) {
     case 'notice': ui.notice(m.text); break;
     case 'noclip': me.noclip = m.on; me.body.noclip = m.on; ui.notice('Noclip ' + (m.on ? 'ON — fly through blocks' : 'OFF')); break;
     case 'openWorlds': ui.openWorldBrowser(); break;
-    case 'dropSpawn': world.drops.set(m.id, { id: m.id, item: m.item, count: m.count, x: m.x, y: m.y }); break;
+    case 'leftWorld':
+      // clear world state, show browser
+      world.fg = null; world.bg = null; world.players.clear(); world.drops.clear(); world.seeds.clear();
+      ui.openWorldBrowser();
+      break;
+    case 'dropSpawn': world.drops.set(m.id, { id: m.id, item: m.item, count: m.count, gemType: m.gemType, x: m.x, y: m.y }); break;
     case 'dropGone': world.drops.delete(m.id); pickupSent.delete(m.id); sfx.pickup(); break;
     case 'weather': world.weather = m.kind; ui.setWeather(m.kind); {
       const msgs = { clear: '☀ The sky clears.', cloudy: '☁ Clouds gather.', drizzle: '🌦 Drizzle begins.',
@@ -205,6 +224,8 @@ function onNetMessage(m) {
     }
     case 'lock':
       world.lock = m.lock;
+      // recalculate canEdit: no lock = everyone can edit; lock = only access list
+      world.canEdit = !m.lock || (m.lock.access && m.lock.access.includes(me.id));
       ui.notice(m.lock ? `🔒 ${m.lock.ownerName} owns this world.` : '🔓 World is unlocked.');
       break;
     case 'fx':
@@ -348,10 +369,10 @@ function frame(nowMs) {
       moveAcc = 0;
       net.send({ t: 'move', x: Math.round(me.body.x), y: Math.round(me.body.y), vx: Math.round(me.body.vx), vy: Math.round(me.body.vy), face: me.body.face, anim: me.body.anim });
     }
-    // drop pickup
+    // drop pickup (only when actually touching)
     for (const d of world.drops.values()) {
       if (pickupSent.has(d.id)) continue;
-      if (Math.hypot(me.body.x - d.x, me.body.y - 15 - d.y) < 56) {
+      if (Math.hypot(me.body.x - d.x, me.body.y - 15 - d.y) < 28) {
         pickupSent.add(d.id);
         net.send({ t: 'pickup', id: d.id });
       }
@@ -380,18 +401,35 @@ function frame(nowMs) {
 }
 
 // ---------- boot ----------
-// The render loop MUST start no matter what: any boot error is caught and
-// reported, but never prevents the game from running.
+// Load assets with progress on the loading screen, then connect.
+let _assetsLoaded = false;
+async function bootWithProgress(connectFn) {
+  if (!_assetsLoaded) {
+    try {
+      await loadAssets((done, total) => ui.setLoadProgress(done, total));
+      await loadVfx();
+      _assetsLoaded = true;
+    } catch (e) { console.warn('loadAssets failed', e); }
+  }
+  ui.setLoadProgress(10, 10); // complete
+  setTimeout(() => { ui.hideLoading(); connectFn(); }, 400);
+}
 (async () => {
   try {
-    // Asset loading must NEVER kill the render loop: a single failed image
-    // used to reject the whole boot, leaving a blank canvas with working UI.
-    try { await loadAssets(); } catch (e) { console.warn('loadAssets failed', e); }
-    try { await loadVfx(); } catch (e) { console.warn('loadVfx failed', e); }
+    // Assets load on Connect (with progress on the loading screen).
     const savedName = storage.get('sproutopia_name');
     if (savedName) {
       const el = document.getElementById('guest-name');
       if (el) el.value = savedName;
+    }
+    // Pre-fill saved HatID credentials (per device/browser)
+    const savedHatId = storage.get('sproutopia_hatid');
+    const savedPass = storage.get('sproutopia_hatid_pass');
+    if (savedHatId && savedPass) {
+      document.getElementById('hatid-name').value = savedHatId;
+      document.getElementById('hatid-pass').value = savedPass;
+      document.getElementById('hatid-mode').checked = true;
+      document.getElementById('hatid-mode').dispatchEvent(new Event('change'));
     }
     renderer.draw({ world, me: { id: '', x: 1600, y: 700, face: 1, anim: 'idle', punchT: 0, look: me.look }, players: new Map(), target: null }, performance.now());
   } catch (e) {

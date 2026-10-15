@@ -1,7 +1,7 @@
 // Canvas renderer: backdrop, tiles, trees, drops, players, weather, effects.
 import { TILE, WORLD_W, WORLD_H, growTimeFor } from '../../shared/constants.mjs';
 import { itemById } from '../../shared/items.mjs';
-import { tileImage, imgs } from './assets.mjs';
+import { tileImage, lockTileImage, imgs } from './assets.mjs';
 import { drawPlayer } from './player_draw.mjs';
 
 function stageOf(seedId, plantedAt, at) {
@@ -249,7 +249,10 @@ export class Renderer {
       const id = w.fg[i];
       if (id) {
         // animated water: cycle the 4 pack frames on a global clock (falls back to static tile)
-        const im = id === 16 && state.vfx ? (state.vfx.waterFrame(t) || tileImage(id)) : tileImage(id);
+        // locks show green keyhole variant when the viewer has access
+        const hasAccess = !!(state.world && state.world.canEdit);
+        const im = id === 16 && state.vfx ? (state.vfx.waterFrame(t) || tileImage(id)) :
+                   (id === 50 || id === 51) ? lockTileImage(id, hasAccess) : tileImage(id);
         const it = itemById(id);
         if (im) {
           if (it && it.tile && it.tile.startsWith('obj_')) {
@@ -277,6 +280,21 @@ export class Renderer {
             ctx.drawImage(crackCanvas(crackPaletteFor(it2?.tile), stage), tx * TILE, ty * TILE);
           }
         }
+        // snow accumulation: white cap on top of solid tiles during snow weather
+        if (state.vfx && state.vfx.cur && state.vfx.cur.snow > 0.5) {
+          const above = ty > 0 ? w.fg[(ty - 1) * WORLD_W + tx] : 0;
+          if (!above) {
+            const sa = Math.min(1, (state.vfx.cur.snow - 0.5) * 2);
+            ctx.globalAlpha = sa * 0.9;
+            ctx.fillStyle = '#e8f0f8';
+            // snow cap: rounded top layer
+            const capH = 6;
+            ctx.fillRect(tx * TILE, ty * TILE, TILE, capH);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(tx * TILE, ty * TILE, TILE, 3);
+            ctx.globalAlpha = 1;
+          }
+        }
       }
       // trees / seeds
       const s = w.seeds.get(i);
@@ -300,12 +318,20 @@ export class Renderer {
     }
     // drops
     for (const d of w.drops.values()) {
+      const bob = Math.sin(t * 3 + d.id) * 3;
+      // floating gem entities (currency) — size scales with gem value
+      if (d.gemType && imgs['gem_' + d.gemType]) {
+        const gim = imgs['gem_' + d.gemType];
+        const gemScale = { yellow: 0.55, red: 0.7, purple: 0.85, green: 1.0, black: 1.0 }[d.gemType] || 0.7;
+        const gs = Math.round(24 * gemScale);
+        ctx.drawImage(gim, d.x - gs / 2, d.y - gs / 2 + bob, gs, gs);
+        continue;
+      }
       const it = itemById(d.item);
       let im = null;
       if (it && it.tile) im = tileImage(d.item);
       else if (it && it.kind === 'seed') im = imgs.flora.seed;
       if (d.item === 80) im = imgs.wrench;
-      const bob = Math.sin(t * 3 + d.id) * 3;
       if (im) ctx.drawImage(im, d.x - 11, d.y - 11 + bob, 22, 22);
       else { ctx.fillStyle = '#ffd75e'; ctx.fillRect(d.x - 8, d.y - 8 + bob, 16, 16); }
     }
@@ -403,6 +429,6 @@ export class Renderer {
     ctx.restore();
 
     // vfx: rain, splashes, wind, fog, lightning (in front of tiles)
-    if (state.vfx) state.vfx.renderForeground(ctx, this.w, this.h);
+    if (state.vfx) state.vfx.renderForeground(ctx, this.w, this.h, this.cam.x, this.cam.y, this.scale);
   }
 }

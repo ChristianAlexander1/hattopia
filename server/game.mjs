@@ -9,7 +9,7 @@ import {
   INV_SLOTS, MAX_STACK, CHAT_MAX_LEN, CHAT_COOLDOWN_MS,
   SEED_RETURN_CHANCE, growTimeFor, rollWeatherKind,
 } from '../shared/constants.mjs';
-import { ITEMS, itemById, isSeed, isBlock, spliceResult, STARTER_KIT } from '../shared/items.mjs';
+import { ITEMS, itemById, isSeed, isBlock, spliceResult, STARTER_KIT, GEM_TYPES, gemDropFor } from '../shared/items.mjs';
 import { store } from './db.mjs';
 import { generateWorld, serializeWorld, deserializeWorld, idx, inBounds } from './world.mjs';
 import { hashPassword, verifyPassword, validPassword } from './auth.mjs';
@@ -210,6 +210,14 @@ export class Game {
     w.dirty = false;
   }
 
+  leaveWorld(p) {
+    if (p.world) {
+      const old = this.worlds.get(p.world);
+      if (old) { old.players.delete(p.id); this.broadcast(old, { t: 'leave', id: p.id }); }
+      p.world = null;
+    }
+    this.send(p, { t: 'leftWorld' });
+  }
   joinWorld(p, name) {
     if (!validWorldName(name)) { this.notice(p, 'Invalid world name.'); return; }
     name = name.toUpperCase();
@@ -229,7 +237,7 @@ export class Game {
       signs: [...w.signs.entries()].map(([i, text]) => ({ x: i % WORLD_W, y: Math.floor(i / WORLD_W), text })),
       lock: w.lock ? { ownerName: w.lock.ownerName, access: w.lock.access } : null,
       weather: w.weather.kind,
-      drops: [...w.drops.values()].map((d) => ({ id: d.id, item: d.item, count: d.count, x: d.x, y: d.y })),
+      drops: [...w.drops.values()].map((d) => ({ id: d.id, item: d.item, count: d.count, gemType: d.gemType, x: d.x, y: d.y })),
       players: this.playerList(w),
       canEdit: this.canEdit(p, w),
     });
@@ -297,7 +305,10 @@ export class Game {
     }
     if (!p) {
       if (!validName(msg.name)) { ws.send(JSON.stringify({ t: 'error', text: 'Pick a name: 3-16 letters, numbers, _.' })); return; }
-      const existing = store.getPlayerByName(msg.name);
+      // Admin shortcut: "admin" (any case, with or without @) resolves to the stored "@Admin"
+      // HatID *before* the DB lookup, so plain "admin" finds the account instead of 404ing.
+      const loginName = /^@?admin$/i.test(msg.name) ? '@Admin' : msg.name;
+      const existing = store.getPlayerByName(loginName);
       if (msg.password !== undefined) {
         // HatID login: name + password (case-insensitive, preserves registered casing)
         if (this.authThrottled(ws)) { ws.send(JSON.stringify({ t: 'error', text: 'Too many attempts. Wait a minute and try again.' })); return; }
@@ -375,6 +386,46 @@ export class Game {
     this.broadcast(w, { t: 'dropSpawn', id, item, count, x: Math.round(x), y: Math.round(y) });
     return d;
   }
+  // Spawn a floating gem entity (currency, not inventory item)
+  // Gems scatter randomly within ~1 block and auto-merge/upgrade when piling up
+  spawnGemDrop(w, gemType, count, x, y) {
+    // random scatter: left/center/right within 1 block
+    const sx = x + (Math.random() - 0.5) * 36;
+    const sy = y + (Math.random() - 0.5) * 12;
+    // check for nearby same-type gems to merge
+    for (const d of w.drops.values()) {
+      if (!d.gemType || d.gemType !== gemType) continue;
+      if (Math.hypot(d.x - sx, d.y - sy) > 40) continue;
+      // merge into existing
+      d.count += count;
+      this.tryUpgradeGem(w, d);
+      this.broadcast(w, { t: 'dropSpawn', id: d.id, item: 0, count: d.count, gemType: d.gemType, x: Math.round(d.x), y: Math.round(d.y) });
+      return d;
+    }
+    const id = w.nextDropId++;
+    const d = { id, item: 0, count, gemType, x: sx, y: sy, vx: (Math.random() - 0.5) * 80, vy: -120, landed: false };
+    w.drops.set(id, d);
+    this.tryUpgradeGem(w, d);
+    this.broadcast(w, { t: 'dropSpawn', id, item: 0, count: d.count, gemType: d.gemType, x: Math.round(sx), y: Math.round(sy) });
+    return d;
+  }
+  // Upgrade gem denominations when piled up (10 yellow -> 1 red, 5 red -> 1 purple)
+  tryUpgradeGem(w, d) {
+    const order = ['yellow', 'red', 'purple', 'green', 'black'];
+    const values = { yellow: 1, red: 10, purple: 50, green: 80, black: 100 };
+    let idx = order.indexOf(d.gemType);
+    while (idx < order.length - 1) {
+      const curVal = values[d.gemType];
+      const nextType = order[idx + 1];
+      const nextVal = values[nextType];
+      const totalVal = d.count * curVal;
+      if (totalVal >= nextVal && totalVal % nextVal === 0) {
+        d.count = totalVal / nextVal;
+        d.gemType = nextType;
+        idx++;
+      } else break;
+    }
+  }
   giveOrDrop(p, w, id, count, x, y) {
     const rest = addItem(p.inv, id, count);
     p.invDirty = true;
@@ -430,7 +481,7 @@ export class Game {
       if (t - p.lastDoorAt < 2000) return;
       p.lastDoorAt = t;
       this.notice(p, 'You step through the white door...');
-      this.send(p, { t: 'openWorlds' });
+      this.leaveWorld(p);
       this.broadcast(w, { t: 'fx', kind: 'door', x: p.x, y: p.y });
       return;
     }
@@ -449,10 +500,10 @@ export class Game {
       // editors fall through to normal damage/break below
     }
     // Lock: owner punching picks it up; others cannot damage
-    if (fgId === 50) {
+    if (fgId === 50 || fgId === 51) {
       if (w.lock && w.lock.ownerId === p.id) {
         w.fg[i] = 0; w.lock = null; w.markDirty();
-        this.giveOrDrop(p, w, 50, 1, cx, cy);
+        this.giveOrDrop(p, w, fgId, 1, cx, cy);
         this.broadcast(w, { t: 'tile', tx, ty, fg: 0, bg: w.bg[i], seed: null, dmg: 0 });
         this.broadcast(w, { t: 'lock', lock: null });
         this.notice(p, 'World unlocked.');
@@ -478,6 +529,14 @@ export class Game {
         const roll = Math.random();
         if (roll < 0.55) this.giveOrDrop(p, w, id, 1, cx, cy - 10);
         else if (roll < 0.8 && it.seed) this.giveOrDrop(p, w, it.seed, 1, cx, cy - 10);
+        // floating gem drop (configurable by block)
+        const gemCfg = gemDropFor(id);
+        if (gemCfg && Math.random() < gemCfg.chance) {
+          const gemCount = gemCfg.min + Math.floor(Math.random() * (gemCfg.max - gemCfg.min + 1));
+          // spawn each gem separately so they scatter (merge/upgrade handled in spawnGemDrop)
+          for (let g = 0; g < gemCount; g++)
+            this.spawnGemDrop(w, gemCfg.gem, 1, cx, cy - 10);
+        }
         const gems = Math.floor(Math.random() * (it.rarity + 1));
         if (gems > 0) { p.gems += gems; this.send(p, { t: 'gems', gems: p.gems }); }
         this.broadcast(w, { t: 'fx', kind: 'break', x: cx, y: cy });
@@ -525,10 +584,10 @@ export class Game {
     } else {
       if (w.bg[i] !== 0) { this.notice(p, 'No room there.'); return; }
     }
-    // World lock claims the world
-    if (itemId === 50) {
+    // World lock / Diamond lock claims the world
+    if (itemId === 50 || itemId === 51) {
       if (w.lock) { this.notice(p, 'This world already has a lock.'); return; }
-      w.lock = { ownerId: p.id, ownerName: p.name, access: [p.id] };
+      w.lock = { ownerId: p.id, ownerName: p.name, access: [p.id], kind: itemId === 51 ? 'diamond' : 'world' };
       this.broadcast(w, { t: 'lock', lock: { ownerName: p.name, access: [p.id] } });
       this.notice(p, `You now own ${w.name}! Punch the lock to remove it.`);
     }
@@ -594,9 +653,17 @@ export class Game {
     if (!w) return;
     const d = w.drops.get(msg.id);
     if (!d) return;
-    if (dist(p.x, p.y, d.x, d.y) > PICKUP_COLLECT_R + 30) return;
+    if (dist(p.x, p.y, d.x, d.y) > PICKUP_COLLECT_R + 8) return;
     w.drops.delete(msg.id);
-    this.giveOrDrop(p, w, d.item, d.count, p.x, p.y);
+    // Gem drops award currency, not inventory items
+    if (d.gemType && GEM_TYPES[d.gemType]) {
+      const value = GEM_TYPES[d.gemType].value * d.count;
+      p.gems += value;
+      this.send(p, { t: 'gems', gems: p.gems });
+      this.notice(p, `+${value} gems`);
+    } else {
+      this.giveOrDrop(p, w, d.item, d.count, p.x, p.y);
+    }
     this.broadcast(w, { t: 'dropGone', id: msg.id });
   }
   onDropItem(p, msg) {
@@ -668,16 +735,10 @@ export class Game {
       if (cmd === 'help') { this.notice(p, 'Commands: /join WORLDNAME'); return; }
       // ---- admin commands (@Admin only) ----
       if (this.isAdmin(p)) {
-        if (cmd === 'find' && rest[0]) {
-          const q = rest.join(' ').toLowerCase();
-          const found = [];
-          for (const [id, it] of Object.entries(ITEMS)) {
-            if (it.name.toLowerCase().includes(q)) {
-              found.push(`${it.name} (id:${id})`);
-              if (found.length >= 10) break;
-            }
-          }
-          this.notice(p, found.length ? 'Found: ' + found.join(', ') : 'No items found for "' + q + '"');
+        if (cmd === 'find') {
+          // open Item Finder dialog; auto-search if a query was given
+          const q = rest.join(' ');
+          this.send(p, { t: 'find_dialog', q });
           return;
         }
         if (cmd === 'weather' && rest[0]) {
@@ -726,6 +787,36 @@ export class Game {
   }
   isAdmin(p) {
     return p.name === '@Admin';
+  }
+  // Item Finder: search items by name (admin only)
+  onFindSearch(p, msg) {
+    if (!this.isAdmin(p)) return;
+    const q = String(msg.q || '').trim().toLowerCase();
+    const items = [];
+    for (const [id, it] of Object.entries(ITEMS)) {
+      if (!q || it.name.toLowerCase().includes(q)) {
+        items.push({ id: Number(id), name: it.name });
+        if (items.length >= 60) break;
+      }
+    }
+    this.send(p, { t: 'find_results', items });
+  }
+  // Item Finder: claim selected items into inventory (admin only)
+  onFindClaim(p, msg) {
+    if (!this.isAdmin(p)) return;
+    const ids = Array.isArray(msg.ids) ? msg.ids : [];
+    let added = 0;
+    for (const rawId of ids.slice(0, 24)) {
+      const id = Number(rawId);
+      if (!Number.isInteger(id) || !ITEMS[id]) continue;
+      addItem(p.inv, id, 1);
+      added++;
+    }
+    if (added) {
+      store.saveInventory(p.id, p.inv);
+      this.send(p, { t: 'inv', slots: p.inv, gems: p.gems });
+      this.notice(p, `Claimed ${added} item${added > 1 ? 's' : ''}.`);
+    }
   }
 
   // ----- appearance -----
@@ -899,6 +990,8 @@ export class Game {
     if (!p) return;
     switch (msg.t) {
       case 'hatid_claim': this.onClaimHatId(p, msg); break;
+      case 'find_search': this.onFindSearch(p, msg); break;
+      case 'find_claim': this.onFindClaim(p, msg); break;
       case 'move': {
         const m = msg;
         if (![m.x, m.y, m.vx, m.vy].every(Number.isFinite)) return;
@@ -920,6 +1013,7 @@ export class Game {
       case 'signText': this.onSignText(p, msg); break;
       case 'setLook': this.onSetLook(p, msg); break;
       case 'joinWorld': this.joinWorld(p, msg.name); break;
+      case 'leaveWorld': this.leaveWorld(p); break;
       case 'listWorlds': this.onListWorlds(p); break;
       case 'wrench': this.onWrench(p, msg); break;
       case 'grantAccess': this.onGrantAccess(p, msg); break;

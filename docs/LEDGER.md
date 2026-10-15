@@ -413,3 +413,18 @@ States: NOT STARTED → IN PROGRESS → IMPLEMENTED → VERIFIED
   no-regen). 57/57 pass (2 pre-existing flaky tests: punch-fx, unrelated).
 - Browser QA (desktop + mobile viewport): flat world, door on bedrock, punch
   door opens world browser, zero console errors.
+
+## 2026-10-15 — Admin login defect fixed (plain "admin" now finds @Admin)
+- Bug: typing `admin` (no @) on the HatID login never matched the stored
+  `@Admin` account — the DB lookup ran before the admin canonicalization,
+  so it returned "No HatID found for that name."
+- Fix (server/game.mjs, onHello): normalize the login name *before*
+  getPlayerByName — `/^@?admin$/i` -> `@Admin`. Covers admin/Admin/ADMIN,
+  @admin/@ADMIN/@Admin, all verified to log in as @Admin with admin rights.
+- Side benefit: closes a privilege quirk where a HatID registered as
+  "admin" (no @) would have been renamed to @Admin on login (now such a
+  login resolves to the real @Admin row and fails password check).
+- Guest path: typing "admin" as guest now hits the protected-name message
+  ("That name is protected by a HatID"), consistent with @Admin.
+- Tests: +1 regression test (6 alias logins + wrong-password rejection).
+  58/58 pass. Live server restarted to load the fix (0 players online).

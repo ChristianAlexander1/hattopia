@@ -30,51 +30,53 @@ export class UI {
       $('login').classList.remove('hidden');
       $('login-err').textContent = '';
     };
-    // guest login (left panel)
-    const guestGo = () => {
-      const name = $('guest-name').value.trim();
-      if (!validName(name)) { $('login-err').textContent = 'Name: 3-16 chars, letters/numbers/_'; return; }
+    // single Connect button: guest or HatID depending on checkbox
+    const doConnect = () => {
+      const useHatId = $('hatid-mode').checked;
       $('login-err').textContent = '';
-      this.h.onPlay(name);
+      if (useHatId) {
+        const name = $('hatid-name').value.trim();
+        const pass = $('hatid-pass').value;
+        if (!validName(name)) { $('login-err').textContent = 'Name: 3-16 chars, letters/numbers/_'; return; }
+        if (!pass) { $('login-err').textContent = 'Enter your HatID password.'; return; }
+        this.showLoading(name);
+        this.h.onHatIdLogin(name, pass);
+      } else {
+        const name = $('guest-name').value.trim();
+        if (!validName(name)) { $('login-err').textContent = 'Name: 3-16 chars, letters/numbers/_'; return; }
+        this.showLoading(name);
+        this.h.onPlay(name);
+      }
     };
-    $('btn-guest').onclick = guestGo;
-    $('guest-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') guestGo(); });
-    // HatID login (right panel)
-    const hatidGo = () => {
-      const name = $('hatid-name').value.trim();
-      const pass = $('hatid-pass').value;
-      if (!validName(name)) { $('login-err').textContent = 'Name: 3-16 chars, letters/numbers/_'; return; }
-      if (!pass) { $('login-err').textContent = 'Enter your HatID password.'; return; }
-      $('login-err').textContent = '';
-      this.h.onHatIdLogin(name, pass);
-    };
-    $('btn-hatid').onclick = hatidGo;
-    $('hatid-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') hatidGo(); });
-    // HatID mode toggle: when checked, HatID fields enabled and guest disabled
+    $('btn-connect').onclick = doConnect;
+    $('guest-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') doConnect(); });
+    $('hatid-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') doConnect(); });
+    // HatID mode toggle
     const hatidMode = $('hatid-mode');
     const updateLoginMode = () => {
       const on = hatidMode.checked;
       $('hatid-name').disabled = !on;
       $('hatid-pass').disabled = !on;
-      $('btn-hatid').disabled = !on;
       $('guest-name').disabled = on;
-      $('btn-guest').disabled = on;
+      document.querySelectorAll('.lf-label.dim').forEach(el => el.classList.toggle('dim-off', on));
     };
     hatidMode.onchange = updateLoginMode;
     updateLoginMode();
+    // Cancel login
+    $('btn-cancel-login').onclick = () => {
+      $('login-loading').classList.add('hidden');
+      $('login-form').classList.remove('hidden');
+    };
     // HatID registration mode
-    $('lf-showreg').onclick = (e) => {
-      e.preventDefault();
-      $('hatid-login').classList.add('hidden');
-      $('hatid-reg').classList.remove('hidden');
+    const showReg = (show) => {
+      $('hatid-reg').classList.toggle('hidden', !show);
+      document.querySelector('.lf-single').classList.toggle('hidden', show);
       $('login-err').textContent = '';
     };
-    $('lf-showlogin').onclick = (e) => {
-      e.preventDefault();
-      $('hatid-reg').classList.add('hidden');
-      $('hatid-login').classList.remove('hidden');
-      $('login-err').textContent = '';
-    };
+    // "Get HatID" link in lf-note
+    const regLink = document.getElementById('lf-gethatid');
+    if (regLink) regLink.onclick = (e) => { e.preventDefault(); showReg(true); };
+    $('btn-regback').onclick = () => showReg(false);
     $('btn-reg').onclick = () => {
       const name = $('reg-name').value.trim();
       const p1 = $('reg-pass').value, p2 = $('reg-pass2').value;
@@ -106,6 +108,13 @@ export class UI {
     }
     $('chat-send').onclick = () => this.sendChat();
     $('chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') this.sendChat(); });
+    // Item Finder (admin)
+    this.findSel = new Set();
+    $('find-go').onclick = () => this.findSearch();
+    $('find-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') this.findSearch(); });
+    $('find-cancel').onclick = () => $('dlg-find').classList.add('hidden');
+    $('find-back').onclick = () => this.showFindSearch();
+    $('find-claim').onclick = () => this.findClaim();
     $('btn-world').onclick = () => this.openWorldBrowser();
     $('world-go').onclick = () => {
       const w = $('world-input').value.trim().toUpperCase();
@@ -119,7 +128,7 @@ export class UI {
     if (bm) bm.onclick = () => this.openMenu();
     // in-game menu buttons
     $('m-back').onclick = () => $('dlg-menu').classList.add('hidden');
-    $('m-exit').onclick = () => { $('dlg-menu').classList.add('hidden'); this.openWorldBrowser(); };
+    $('m-exit').onclick = () => { $('dlg-menu').classList.add('hidden'); this.h.onLeaveWorld(); };
     $('m-respawn').onclick = () => { $('dlg-menu').classList.add('hidden'); this.h.onRespawn && this.h.onRespawn(); };
     $('m-options').onclick = () => { $('dlg-menu').classList.add('hidden'); $('dlg-options').classList.remove('hidden'); };
     $('m-support').onclick = () => { $('dlg-menu').classList.add('hidden'); $('dlg-help').classList.remove('hidden'); };
@@ -196,8 +205,31 @@ export class UI {
   showGame() {
     $('login').classList.add('hidden');
     $('login-form').classList.add('hidden');
-    for (const id of ['topbar', 'hotbar', 'sidebtns', 'touch']) $(id).classList.remove('hidden');
+    $('login-loading').classList.add('hidden');
+    for (const id of ['topbar', 'hotbar', 'sidebtns', 'touch', 'gems-float']) $(id).classList.remove('hidden');
     if (matchMedia('(pointer:fine)').matches) $('touch').classList.add('hidden');
+  }
+  // Growtopia-style loading screen
+  showLoading(playerName) {
+    $('login-form').classList.add('hidden');
+    $('login-loading').classList.remove('hidden');
+    this._playerName = playerName;
+    // reset status lines
+    for (let i = 1; i <= 4; i++) $('ll-' + i).textContent = '';
+    $('ll-fill').style.width = '0%';
+    $('ll-count').textContent = '';
+    // sequence the status messages
+    setTimeout(() => { $('ll-1').textContent = 'Getting server address...'; }, 200);
+    setTimeout(() => { $('ll-2').textContent = 'Located server, connecting...'; }, 800);
+    setTimeout(() => { $('ll-3').textContent = `Logging on ${playerName}...`; }, 1400);
+  }
+  setLoadProgress(done, total) {
+    $('ll-4').textContent = 'Updating items, please wait...';
+    $('ll-fill').style.width = (total ? (done / total * 100) : 0) + '%';
+    $('ll-count').textContent = `(${done} / ${total})`;
+  }
+  hideLoading() {
+    $('login-loading').classList.add('hidden');
   }
   loginError(t) { $('login-err').textContent = t; }
   setWorld(n) { $('world-name').textContent = n; }
@@ -279,6 +311,52 @@ export class UI {
   addChat(from, text, sys = false) {
     // overlay IS the chat log (persistent at top)
     this.showOverlayChat(from, text, sys);
+  }
+  // ---- Item Finder (admin) ----
+  openFindDialog(q = '') {
+    this.findSel = new Set();
+    this.showFindSearch();
+    $('find-input').value = q || '';
+    $('dlg-find').classList.remove('hidden');
+    if (q) this.findSearch();
+    else $('find-input').focus();
+  }
+  showFindSearch() {
+    $('find-search-view').classList.remove('hidden');
+    $('find-results-view').classList.add('hidden');
+  }
+  showFindResults() {
+    $('find-search-view').classList.add('hidden');
+    $('find-results-view').classList.remove('hidden');
+  }
+  findSearch() {
+    const q = $('find-input').value.trim();
+    this.h.net.send({ t: 'find_search', q });
+  }
+  onFindResults(items) {
+    this.findSel = new Set();
+    const g = $('find-grid');
+    g.innerHTML = '';
+    if (!items.length) {
+      g.innerHTML = '<div class="find-label">No items found.</div>';
+    }
+    for (const it of items) {
+      const d = document.createElement('div');
+      d.className = 'find-item';
+      d.innerHTML = `<img src="${itemIcon(it.id)}" alt=""><span class="fn">${esc(it.name)}</span>`;
+      d.onclick = () => {
+        if (this.findSel.has(it.id)) { this.findSel.delete(it.id); d.classList.remove('sel'); }
+        else { this.findSel.add(it.id); d.classList.add('sel'); }
+      };
+      g.appendChild(d);
+    }
+    this.showFindResults();
+  }
+  findClaim() {
+    if (!this.findSel.size) { this.notice('Select at least one item.'); return; }
+    this.h.net.send({ t: 'find_claim', ids: [...this.findSel] });
+    if (!$('find-stay').checked) $('dlg-find').classList.add('hidden');
+    this.findSel = new Set();
   }
   showOverlayChat(from, text, sys = false) {
     const ov = $('chat-overlay');
@@ -389,7 +467,8 @@ export class UI {
     }
     if (!rec.length) recent.innerHTML = '<span class="dim">—</span>';
     // system log
-    this.worldSyslog(`Where would you like to go? (${worlds?.length || 0} worlds)`);
+    const totalOnline = (worlds || []).reduce((n, w) => n + (w.players || 0), 0);
+    this.worldSyslog(`Where would you like to go? (${totalOnline} Online)`);
   }
   worldSyslog(text) {
     const el = $('world-syslog');

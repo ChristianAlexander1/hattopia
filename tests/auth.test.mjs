@@ -99,3 +99,23 @@ test('HatID: register rejects taken names and weak passwords', () => {
   game.onRegister(ws2, { t: 'register', name: tag('WeakUser'), password: '123' });
   assert.ok(/6-64/.test(lastErr(ws2).text), 'weak password rejected');
 });
+
+test('HatID: plain "admin" (any case, with/without @) logs into the @Admin HatID', () => {
+  const { game, inbox } = freshGame();
+  game.onRegister(mkWs(), { t: 'register', name: '@Admin', password: 'adminpw1' });
+  assert.ok(welcomeGot(inbox, '@Admin'), 'admin HatID registered');
+
+  for (const alias of ['admin', 'Admin', 'ADMIN', '@admin', '@ADMIN', '@Admin']) {
+    const w2 = mkWs();
+    game.onHello(w2, { t: 'hello', name: alias, password: 'adminpw1' });
+    const p = game.players.get(game.byWs.get(w2));
+    assert.ok(p, `login as "${alias}" succeeds`);
+    assert.equal(p.name, '@Admin', `alias "${alias}" resolves to @Admin`);
+    assert.ok(game.isAdmin(p), `alias "${alias}" has admin rights`);
+  }
+
+  // wrong password is still rejected for the admin account
+  const w3 = mkWs();
+  game.onHello(w3, { t: 'hello', name: 'admin', password: 'nope-nope' });
+  assert.ok(/Wrong password/.test(lastErr(w3).text), 'admin wrong password rejected');
+});

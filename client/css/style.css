@@ -272,3 +272,64 @@ button.pill{min-height:44px;min-width:44px;}
 /* social portal (dummy) */
 .social-box{display:flex;flex-direction:column;gap:10px;align-items:stretch;}
 .social-box h3{text-align:center;margin-bottom:6px;}
+/* Item Finder (admin) */
+.find-box h3{text-align:center;margin-bottom:10px;color:#fff;}
+.find-label{color:#ffe9a8;font-size:14px;margin:8px 0;}
+.find-btns{justify-content:flex-start;gap:10px;margin-top:12px;}
+.fbtn{padding:10px 24px;font-size:18px;font-weight:bold;border:none;border-radius:8px;cursor:pointer;}
+.fbtn.yellow{background:#f7b731;color:#fff;}
+.fbtn.pink{background:#a8d8e8;color:#e84393;}
+.fbtn.blue{background:#a8d8e8;color:#2d5f7a;}
+.find-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px;
+  max-height:40vh;overflow-y:auto;margin:10px 0;padding:4px;}
+.find-item{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;
+  background:#ffffff10;border:2px solid transparent;border-radius:8px;cursor:pointer;}
+.find-item img{width:40px;height:40px;image-rendering:pixelated;}
+.find-item .fn{font-size:11px;color:#ffe9a8;text-align:center;line-height:1.2;word-break:break-word;}
+.find-item.sel{border-color:#ffff00;background:#ffff0022;}
+.find-stay{display:flex;align-items:center;gap:8px;color:#ffe9a8;font-size:15px;margin:8px 0;cursor:pointer;}
+.find-stay input{width:22px;height:22px;}
+/* floating gems counter (bottom right) */
+#gems-float{position:fixed;right:14px;bottom:120px;z-index:50;display:flex;align-items:center;gap:6px;
+  color:#fff;font-size:20px;font-weight:bold;text-shadow:2px 2px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;}
+#gems-float img{width:28px;height:28px;image-rendering:auto;filter:drop-shadow(2px 2px 0 #000);}
+
+/* Growtopia-style login form */
+.lf-single{max-width:700px;margin:40px auto;padding:20px;color:#fff;}
+.lf-row{display:flex;align-items:center;gap:12px;margin:12px 0;}
+.lf-label{font-size:22px;min-width:110px;text-align:right;}
+.lf-label.dim{opacity:0.5;}
+.lf-label.dim-off{opacity:1;}
+.lf-row input[type=text],.lf-row input:not([type]){flex:1;max-width:340px;padding:8px 12px;font-size:20px;
+  background:#0a0a0a;border:1px solid #888;color:#fff;border-radius:2px;}
+.lf-row input[type=password]{flex:1;max-width:340px;padding:8px 12px;font-size:20px;
+  background:#0a0a0a;border:1px solid #888;color:#fff;border-radius:2px;}
+.lf-row input:disabled{opacity:0.5;}
+.lf-check{display:flex;align-items:center;gap:8px;font-size:22px;cursor:pointer;}
+.lf-check input{width:28px;height:28px;cursor:pointer;}
+.lf-spacer{min-width:110px;}
+.lf-info{font-size:20px;margin:24px 0 12px;}
+.lf-note{font-size:17px;line-height:1.5;opacity:0.9;max-width:640px;}
+.lf-note b{color:#ffe9a8;}
+.lf-buttons{display:flex;justify-content:space-between;margin-top:32px;max-width:640px;}
+
+/* Loading screen */
+#login-loading{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:#0a1420;}
+.ll-box{width:90%;max-width:700px;}
+#ll-status{background:#1a3a4a;border:2px solid #4a8aaa;border-radius:6px;padding:16px 20px;min-height:120px;margin-bottom:24px;}
+.ll-line{font-size:18px;color:#ffe9a8;min-height:26px;line-height:1.4;}
+#ll-progress-wrap{position:relative;margin-bottom:24px;}
+#ll-bar{height:36px;background:#ffffff20;border-radius:4px;overflow:hidden;position:relative;}
+#ll-fill{height:100%;width:0%;background:#fff;transition:width 0.2s;}
+#ll-count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:20px;color:#e08ae0;font-weight:bold;text-shadow:1px 1px 2px #000;}
+#btn-cancel-login{display:block;margin:0 auto;}
+
+/* Title screen clouds: same PNGs as in-game weather */
+.tcloud{position:absolute;opacity:.92;pointer-events:none;animation:tdrift linear infinite;}
+@keyframes tdrift{from{transform:translateX(-30vw);}to{transform:translateX(110vw);}}
+.tc1{width:220px;top:10%;animation-duration:75s;}
+.tc2{width:150px;top:24%;animation-duration:110s;animation-delay:-40s;opacity:.85;}
+.tc3{width:280px;top:4%;animation-duration:95s;animation-delay:-70s;}
+.tc4{width:110px;top:36%;animation-duration:130s;animation-delay:-20s;opacity:.75;}
+.tc5{width:180px;top:18%;animation-duration:65s;animation-delay:-55s;opacity:.8;}

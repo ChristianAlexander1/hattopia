@@ -17,12 +17,13 @@
   <!-- top HUD -->
   <div id="topbar" class="hidden">
     <button id="btn-world" class="pill" title="Change world"><span id="world-name">START</span></button>
-    <span class="pill" id="gems-pill" title="Gems">◆ <b id="gems">0</b></span>
     <span class="pill" id="players-pill" title="Players here">● <b id="pcount">1</b></span>
     <span class="spacer"></span>
     <button id="btn-weather" class="pill" title="Weather">☀</button>
     <button id="btn-help" class="pill" title="Help">?</button>
   </div>
+  <!-- gems counter (bottom right, like reference) -->
+  <div id="gems-float" class="hidden"><b id="gems">0</b> <img src="img/gems/gem_red.png" alt=""></div>
 
   <!-- chat overlay (persistent, top of screen) -->
   <div id="chat-overlay" class="hidden"></div>
@@ -118,6 +119,30 @@
     </div>
   </div>
 
+  <!-- Item Finder (admin) -->
+  <div id="dlg-find" class="dlg hidden">
+    <div class="dlg-box wide find-box">
+      <h3>🔍 Item Finder</h3>
+      <div id="find-search-view">
+        <div class="find-label">(name of item to search, try 'dirt'):</div>
+        <div class="row"><input id="find-input" maxlength="40" placeholder="Item name…" autocomplete="off"></div>
+        <div class="row find-btns">
+          <button id="find-cancel" class="fbtn yellow">All good.</button>
+          <button id="find-go" class="fbtn pink">Find!</button>
+        </div>
+      </div>
+      <div id="find-results-view" class="hidden">
+        <div class="find-label">Select items below. Tap to select/deselect.</div>
+        <div id="find-grid" class="find-grid"></div>
+        <label class="find-stay"><input type="checkbox" id="find-stay"> Stay on this page</label>
+        <div class="row find-btns">
+          <button id="find-back" class="fbtn yellow">Cancel</button>
+          <button id="find-claim" class="fbtn blue">Claim items</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="dlg-trade" class="dlg hidden">
     <div class="dlg-box wide">
       <h3>Trade</h3>
@@ -163,11 +188,11 @@
   <div id="login">
     <div class="sky">
       <div class="sun"></div>
-      <div class="cloud c1"></div>
-      <div class="cloud c2"></div>
-      <div class="cloud c3"></div>
-      <div class="cloud c4"></div>
-      <div class="cloud c5"></div>
+      <img class="tcloud tc1" src="img/vfx/clouds/cloud_large.png" alt="">
+      <img class="tcloud tc2" src="img/vfx/clouds/cloud_medium.png" alt="">
+      <img class="tcloud tc3" src="img/vfx/clouds/cloud_soft.png" alt="">
+      <img class="tcloud tc4" src="img/vfx/clouds/cloud_small.png" alt="">
+      <img class="tcloud tc5" src="img/vfx/clouds/cloud_wispy_1.png" alt="">
       <div class="hills"></div>
     </div>
     <div class="login-box">
@@ -179,38 +204,65 @@
     <div class="login-ver">V0.1.0</div>
   </div>
 
-  <!-- login form: guest (left) vs HatID (right) -->
+  <!-- login form: Growtopia-style -->
   <div id="login-form" class="hidden">
-    <div class="lf-panels">
-      <div class="lf-panel">
-        <h3>Guest</h3>
-        <label>Name: <input id="guest-name" maxlength="16" placeholder="Your name" autocomplete="off"></label>
-        <p class="lf-hint">Enter your name, then click Connect to go online.</p>
-        <button id="btn-guest" class="menu-btn">Connect</button>
+    <div class="lf-single">
+      <div class="lf-row">
+        <label class="lf-label">Name:</label>
+        <input id="guest-name" maxlength="16" placeholder="" autocomplete="off">
+        <label class="lf-check"><input type="checkbox" id="hatid-mode"> I have a <b>HatID</b></label>
       </div>
-      <div class="lf-panel">
-        <div id="hatid-login">
-          <h3>I have a HatID</h3>
-          <label class="hatid-toggle"><input type="checkbox" id="hatid-mode"> Use HatID login</label>
-          <label>HatID: <input id="hatid-name" maxlength="16" placeholder="In-game name" autocomplete="off" disabled></label>
-          <label>Password: <input id="hatid-pass" type="password" maxlength="64" placeholder="Password" autocomplete="current-password" disabled></label>
-          <button id="btn-hatid" class="menu-btn" disabled>Connect</button>
-          <p class="lf-hint">No HatID yet? <a id="lf-showreg" href="#">Get one — it's free!</a></p>
-        </div>
-        <div id="hatid-reg" class="hidden">
-          <h3>Get a HatID</h3>
-          <label>Name: <input id="reg-name" maxlength="16" placeholder="Pick a name" autocomplete="off"></label>
-          <label>Password: <input id="reg-pass" type="password" maxlength="64" placeholder="6+ characters" autocomplete="new-password"></label>
-          <label>Confirm: <input id="reg-pass2" type="password" maxlength="64" placeholder="Repeat password" autocomplete="new-password"></label>
+      <div class="lf-row">
+        <span class="lf-spacer"></span>
+        <label class="lf-label dim">HatID:</label>
+        <input id="hatid-name" maxlength="16" autocomplete="off" disabled>
+      </div>
+      <div class="lf-row">
+        <span class="lf-spacer"></span>
+        <label class="lf-label dim">Password:</label>
+        <input id="hatid-pass" type="password" maxlength="64" autocomplete="current-password" disabled>
+      </div>
+      <p class="lf-info">Enter your name, then click Connect to go online.</p>
+      <p class="lf-note">An optional <b>HatID</b> lets you play on multiple devices without losing your stuff.
+        To get one, <b>Connect</b> without one, then choose the <b>Get HatID</b> option from the pause menu. It's free!
+        <a id="lf-gethatid" href="#">Get one now</a></p>
+      <div class="lf-buttons">
+        <button id="btn-back" class="menu-btn">Back</button>
+        <button id="btn-connect" class="menu-btn">Connect</button>
+      </div>
+      <p id="login-err" class="err"></p>
+    </div>
+    <!-- HatID registration (hidden by default) -->
+    <div id="hatid-reg" class="hidden">
+      <div class="lf-single">
+        <h3>Get a HatID</h3>
+        <div class="lf-row"><label class="lf-label">Name:</label><input id="reg-name" maxlength="16" placeholder="Pick a name" autocomplete="off"></div>
+        <div class="lf-row"><label class="lf-label">Password:</label><input id="reg-pass" type="password" maxlength="64" placeholder="6+ characters" autocomplete="new-password"></div>
+        <div class="lf-row"><label class="lf-label">Confirm:</label><input id="reg-pass2" type="password" maxlength="64" placeholder="Repeat password" autocomplete="new-password"></div>
+        <div class="lf-buttons">
+          <button id="btn-regback" class="menu-btn small">Back</button>
           <button id="btn-reg" class="menu-btn">Register</button>
-          <p class="lf-hint"><a id="lf-showlogin" href="#">Back to login</a></p>
         </div>
+        <p id="reg-err" class="err"></p>
       </div>
     </div>
-    <p class="lf-note">A HatID lets you play on multiple devices without losing your stuff.
-      Already playing as guest? Get one from Help → Get HatID.</p>
-    <p id="login-err" class="err"></p>
-    <button id="btn-back" class="menu-btn small">Back</button>
+  </div>
+
+  <!-- loading screen: Growtopia-style connection progress -->
+  <div id="login-loading" class="hidden">
+    <div class="ll-box">
+      <div id="ll-status">
+        <div class="ll-line" id="ll-1"></div>
+        <div class="ll-line" id="ll-2"></div>
+        <div class="ll-line" id="ll-3"></div>
+        <div class="ll-line" id="ll-4"></div>
+      </div>
+      <div id="ll-progress-wrap">
+        <div id="ll-bar"><div id="ll-fill"></div></div>
+        <div id="ll-count"></div>
+      </div>
+      <button id="btn-cancel-login" class="menu-btn">Cancel</button>
+    </div>
   </div>
 
   <div id="dlg-options" class="dlg hidden">
@@ -280,6 +332,6 @@
   <div id="toasts"></div>
   <div id="conn" class="hidden">Reconnecting…</div>
 </div>
-<script type="module" src="js/main.mjs"></script>
+<script type="module" src="js/main.mjs?v=20261015t"></script>
 </body>
 </html>
